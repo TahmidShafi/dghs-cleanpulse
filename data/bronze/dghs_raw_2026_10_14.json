@@ -1,0 +1,266 @@
+{
+  "metadata": {
+    "source_url": "https://dashboard.dghs.gov.bd/pages/heoc_dengue_v1.php",
+    "source_hash": "bae590a1bf506c4c213b821f7585b06a50fabd0025fb0a47924458a126a3298f",
+    "scraped_at_utc": "2026-10-15T13:51:26.933329+00:00",
+    "report_date_raw": "Date: 14 October 2026",
+    "fetch_source": "fixture",
+    "total_zones_extracted": 10,
+    "total_age_groups_extracted": 22
+  },
+  "summary_cards": {
+    "daily_admitted": "1,186",
+    "daily_deaths": "8",
+    "total_admitted": "68,432",
+    "total_deaths": "315"
+  },
+  "zones": [
+    {
+      "sl": "1",
+      "zone_name": "Chattogram",
+      "daily_admitted": "185",
+      "daily_deaths": "1",
+      "total_admitted": "11,420",
+      "total_deaths": "42",
+      "total_discharged": "10,950"
+    },
+    {
+      "sl": "2",
+      "zone_name": "DSCC",
+      "daily_admitted": "320",
+      "daily_deaths": "3",
+      "total_admitted": "18,910",
+      "total_deaths": "112",
+      "total_discharged": "18,100"
+    },
+    {
+      "sl": "3",
+      "zone_name": "Barishal",
+      "daily_admitted": "92",
+      "daily_deaths": "0",
+      "total_admitted": "5,430",
+      "total_deaths": "21",
+      "total_discharged": "5,200"
+    },
+    {
+      "sl": "4",
+      "zone_name": "Dhaka (Out of CC)",
+      "daily_admitted": "145",
+      "daily_deaths": "1",
+      "total_admitted": "8,640",
+      "total_deaths": "38",
+      "total_discharged": "8,280"
+    },
+    {
+      "sl": "5",
+      "zone_name": "DNCC",
+      "daily_admitted": "240",
+      "daily_deaths": "2",
+      "total_admitted": "13,750",
+      "total_deaths": "68",
+      "total_discharged": "13,200"
+    },
+    {
+      "sl": "6",
+      "zone_name": "Khulna",
+      "daily_admitted": "78",
+      "daily_deaths": "1",
+      "total_admitted": "4,120",
+      "total_deaths": "14",
+      "total_discharged": "3,950"
+    },
+    {
+      "sl": "7",
+      "zone_name": "Rajshahi",
+      "daily_admitted": "46",
+      "daily_deaths": "0",
+      "total_admitted": "2,380",
+      "total_deaths": "7",
+      "total_discharged": "2,290"
+    },
+    {
+      "sl": "8",
+      "zone_name": "Mymensingh",
+      "daily_admitted": "38",
+      "daily_deaths": "0",
+      "total_admitted": "1,840",
+      "total_deaths": "5",
+      "total_discharged": "1,760"
+    },
+    {
+      "sl": "9",
+      "zone_name": "Rangpur",
+      "daily_admitted": "24",
+      "daily_deaths": "0",
+      "total_admitted": "1,122",
+      "total_deaths": "4",
+      "total_discharged": "1,080"
+    },
+    {
+      "sl": "10",
+      "zone_name": "Sylhet",
+      "daily_admitted": "18",
+      "daily_deaths": "0",
+      "total_admitted": "820",
+      "total_deaths": "4",
+      "total_discharged": "790"
+    }
+  ],
+  "age_groups": [
+    {
+      "age_group": "0-5",
+      "male": "1250",
+      "female": "980",
+      "total": "2230",
+      "deaths": "12"
+    },
+    {
+      "age_group": "6-10",
+      "male": "1",
+      "female": "0",
+      "total": "1",
+      "deaths": "0"
+    },
+    {
+      "age_group": "06-10",
+      "male": "3020",
+      "female": "2296",
+      "total": "5316",
+      "deaths": "25"
+    },
+    {
+      "age_group": "0-10",
+      "male": "1",
+      "female": "0",
+      "total": "1",
+      "deaths": "0"
+    },
+    {
+      "age_group": "11-15",
+      "male": "2400",
+      "female": "1900",
+      "total": "4300",
+      "deaths": "18"
+    },
+    {
+      "age_group": "16-20",
+      "male": "3100",
+      "female": "2500",
+      "total": "5600",
+      "deaths": "22"
+    },
+    {
+      "age_group": "21-25",
+      "male": "3005",
+      "female": "2375",
+      "total": "5390",
+      "deaths": "30"
+    },
+    {
+      "age_group": "26-30",
+      "male": "2800",
+      "female": "2100",
+      "total": "4900",
+      "deaths": "24"
+    },
+    {
+      "age_group": "31-35",
+      "male": "2200",
+      "female": "1800",
+      "total": "4000",
+      "deaths": "20"
+    },
+    {
+      "age_group": "36-40",
+      "male": "1800",
+      "female": "1500",
+      "total": "3300",
+      "deaths": "15"
+    },
+    {
+      "age_group": "41-45",
+      "male": "1400",
+      "female": "1200",
+      "total": "2600",
+      "deaths": "14"
+    },
+    {
+      "age_group": "42309",
+      "male": "44",
+      "female": "19",
+      "total": "63",
+      "deaths": "2"
+    },
+    {
+      "age_group": "46-50",
+      "male": "1100",
+      "female": "950",
+      "total": "2050",
+      "deaths": "16"
+    },
+    {
+      "age_group": "51-55",
+      "male": "850",
+      "female": "720",
+      "total": "1570",
+      "deaths": "12"
+    },
+    {
+      "age_group": "56-60",
+      "male": "600",
+      "female": "510",
+      "total": "1110",
+      "deaths": "10"
+    },
+    {
+      "age_group": "46301",
+      "male": "36",
+      "female": "31",
+      "total": "67",
+      "deaths": "3"
+    },
+    {
+      "age_group": "61-65",
+      "male": "450",
+      "female": "390",
+      "total": "840",
+      "deaths": "8"
+    },
+    {
+      "age_group": "66-70",
+      "male": "280",
+      "female": "240",
+      "total": "520",
+      "deaths": "6"
+    },
+    {
+      "age_group": "71-75",
+      "male": "150",
+      "female": "130",
+      "total": "280",
+      "deaths": "4"
+    },
+    {
+      "age_group": "76-80",
+      "male": "80",
+      "female": "70",
+      "total": "150",
+      "deaths": "2"
+    },
+    {
+      "age_group": "80+",
+      "male": "45",
+      "female": "40",
+      "total": "85",
+      "deaths": "2"
+    },
+    {
+      "age_group": "",
+      "male": "4",
+      "female": "3",
+      "total": "7",
+      "deaths": "0"
+    }
+  ],
+  "raw_html_length": 15354
+}

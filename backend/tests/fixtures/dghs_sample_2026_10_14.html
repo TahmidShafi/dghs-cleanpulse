@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DGHS Dengue Dynamic Dashboard - HEOC</title>
+</head>
+<body class="hold-transition sidebar-mini">
+<div class="wrapper">
+    <div class="content-header">
+        <div class="container-fluid">
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    <h1 class="m-0 text-dark">Directorate General of Health Services (DGHS)</h1>
+                    <h3 class="text-muted">Health Emergency Operation Center and Control Room</h3>
+                    <p class="lead">Daily Dengue Situation Report</p>
+                    <div class="badge badge-info report-meta">
+                        <span id="report_date_label">Date: 14 October 2026</span> | 
+                        <span>Time: 08:00 AM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- National Aggregate Cards -->
+    <div class="row summary-cards">
+        <div class="col-md-3">
+            <div class="card bg-danger">
+                <div class="inner">
+                    <h3 id="card_daily_admitted">1,186</h3>
+                    <p>Daily Admitted</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning">
+                <div class="inner">
+                    <h3 id="card_daily_deaths">8</h3>
+                    <p>Daily Deaths</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary">
+                <div class="inner">
+                    <h3 id="card_total_admitted">68,432</h3>
+                    <p>Total Admitted (Cumulative)</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-dark">
+                <div class="inner">
+                    <h3 id="card_total_deaths">315</h3>
+                    <p>Total Deaths (Cumulative)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Zone Distribution Table -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Zone/Division Wise Dengue Patient Status</h3>
+                </div>
+                <div class="card-body table-responsive p-0">
+                    <table id="zone_distribution_table" class="table table-hover table-bordered text-nowrap">
+                        <thead>
+                            <tr>
+                                <th>Sl</th>
+                                <th>Zone / Division</th>
+                                <th>Daily Admitted</th>
+                                <th>Daily Deaths</th>
+                                <th>Total Admitted</th>
+                                <th>Total Deaths</th>
+                                <th>Total Discharged</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>1</td>
+                                <td>Chattogram</td>
+                                <td>185</td>
+                                <td>1</td>
+                                <td>11,420</td>
+                                <td>42</td>
+                                <td>10,950</td>
+                            </tr>
+                            <tr>
+                                <td>2</td>
+                                <td>DSCC</td>
+                                <td>320</td>
+                                <td>3</td>
+                                <td>18,910</td>
+                                <td>112</td>
+                                <td>18,100</td>
+                            </tr>
+                            <tr>
+                                <td>3</td>
+                                <td>Barishal</td>
+                                <td>92</td>
+                                <td>0</td>
+                                <td>5,430</td>
+                                <td>21</td>
+                                <td>5,200</td>
+                            </tr>
+                            <tr>
+                                <td>4</td>
+                                <td>Dhaka (Out of CC)</td>
+                                <td>145</td>
+                                <td>1</td>
+                                <td>8,640</td>
+                                <td>38</td>
+                                <td>8,280</td>
+                            </tr>
+                            <tr>
+                                <td>5</td>
+                                <td>DNCC</td>
+                                <td>240</td>
+                                <td>2</td>
+                                <td>13,750</td>
+                                <td>68</td>
+                                <td>13,200</td>
+                            </tr>
+                            <tr>
+                                <td>6</td>
+                                <td>Khulna</td>
+                                <td>78</td>
+                                <td>1</td>
+                                <td>4,120</td>
+                                <td>14</td>
+                                <td>3,950</td>
+                            </tr>
+                            <tr>
+                                <td>7</td>
+                                <td>Rajshahi</td>
+                                <td>46</td>
+                                <td>0</td>
+                                <td>2,380</td>
+                                <td>7</td>
+                                <td>2,290</td>
+                            </tr>
+                            <tr>
+                                <td>8</td>
+                                <td>Mymensingh</td>
+                                <td>38</td>
+                                <td>0</td>
+                                <td>1,840</td>
+                                <td>5</td>
+                                <td>1,760</td>
+                            </tr>
+                            <tr>
+                                <td>9</td>
+                                <td>Rangpur</td>
+                                <td>24</td>
+                                <td>0</td>
+                                <td>1,122</td>
+                                <td>4</td>
+                                <td>1,080</td>
+                            </tr>
+                            <tr>
+                                <td>10</td>
+                                <td>Sylhet</td>
+                                <td>18</td>
+                                <td>0</td>
+                                <td>820</td>
+                                <td>4</td>
+                                <td>790</td>
+                            </tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="font-weight-bold bg-light">
+                                <td colspan="2">Total</td>
+                                <td>1,186</td>
+                                <td>8</td>
+                                <td>68,432</td>
+                                <td>315</td>
+                                <td>65,600</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Age Group Distribution Table -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Age group distribution of affected cases</h3>
+                </div>
+                <div class="card-body table-responsive p-0">
+                    <table id="age_distribution_table" class="table table-hover table-bordered text-nowrap">
+                        <thead>
+                            <tr>
+                                <th>Age Group</th>
+                                <th>Male</th>
+                                <th>Female</th>
+                                <th>Total</th>
+                                <th>Deaths</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>0-5</td>
+                                <td>1250</td>
+                                <td>980</td>
+                                <td>2230</td>
+                                <td>12</td>
+                            </tr>
+                            <tr>
+                                <td>6-10</td>
+                                <td>1</td>
+                                <td>0</td>
+                                <td>1</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>06-10</td>
+                                <td>3020</td>
+                                <td>2296</td>
+                                <td>5316</td>
+                                <td>25</td>
+                            </tr>
+                            <tr>
+                                <td>0-10</td>
+                                <td>1</td>
+                                <td>0</td>
+                                <td>1</td>
+                                <td>0</td>
+                            </tr>
+                            <tr>
+                                <td>11-15</td>
+                                <td>2400</td>
+                                <td>1900</td>
+                                <td>4300</td>
+                                <td>18</td>
+                            </tr>
+                            <tr>
+                                <td>16-20</td>
+                                <td>3100</td>
+                                <td>2500</td>
+                                <td>5600</td>
+                                <td>22</td>
+                            </tr>
+                            <!-- Intentional row-sum mismatch: 3005 + 2375 = 5380, but reported as 5390 -->
+                            <tr>
+                                <td>21-25</td>
+                                <td>3005</td>
+                                <td>2375</td>
+                                <td>5390</td>
+                                <td>30</td>
+                            </tr>
+                            <tr>
+                                <td>26-30</td>
+                                <td>2800</td>
+                                <td>2100</td>
+                                <td>4900</td>
+                                <td>24</td>
+                            </tr>
+                            <tr>
+                                <td>31-35</td>
+                                <td>2200</td>
+                                <td>1800</td>
+                                <td>4000</td>
+                                <td>20</td>
+                            </tr>
+                            <tr>
+                                <td>36-40</td>
+                                <td>1800</td>
+                                <td>1500</td>
+                                <td>3300</td>
+                                <td>15</td>
+                            </tr>
+                            <tr>
+                                <td>41-45</td>
+                                <td>1400</td>
+                                <td>1200</td>
+                                <td>2600</td>
+                                <td>14</td>
+                            </tr>
+                            <!-- Intentional Excel serial date integer bug -->
+                            <tr>
+                                <td>42309</td>
+                                <td>44</td>
+                                <td>19</td>
+                                <td>63</td>
+                                <td>2</td>
+                            </tr>
+                            <tr>
+                                <td>46-50</td>
+                                <td>1100</td>
+                                <td>950</td>
+                                <td>2050</td>
+                                <td>16</td>
+                            </tr>
+                            <tr>
+                                <td>51-55</td>
+                                <td>850</td>
+                                <td>720</td>
+                                <td>1570</td>
+                                <td>12</td>
+                            </tr>
+                            <tr>
+                                <td>56-60</td>
+                                <td>600</td>
+                                <td>510</td>
+                                <td>1110</td>
+                                <td>10</td>
+                            </tr>
+                            <!-- Intentional Excel serial date integer bug -->
+                            <tr>
+                                <td>46301</td>
+                                <td>36</td>
+                                <td>31</td>
+                                <td>67</td>
+                                <td>3</td>
+                            </tr>
+                            <tr>
+                                <td>61-65</td>
+                                <td>450</td>
+                                <td>390</td>
+                                <td>840</td>
+                                <td>8</td>
+                            </tr>
+                            <tr>
+                                <td>66-70</td>
+                                <td>280</td>
+                                <td>240</td>
+                                <td>520</td>
+                                <td>6</td>
+                            </tr>
+                            <tr>
+                                <td>71-75</td>
+                                <td>150</td>
+                                <td>130</td>
+                                <td>280</td>
+                                <td>4</td>
+                            </tr>
+                            <tr>
+                                <td>76-80</td>
+                                <td>80</td>
+                                <td>70</td>
+                                <td>150</td>
+                                <td>2</td>
+                            </tr>
+                            <tr>
+                                <td>80+</td>
+                                <td>45</td>
+                                <td>40</td>
+                                <td>85</td>
+                                <td>2</td>
+                            </tr>
+                            <!-- Intentional empty string age bucket -->
+                            <tr>
+                                <td></td>
+                                <td>4</td>
+                                <td>3</td>
+                                <td>7</td>
+                                <td>0</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
