@@ -1,0 +1,36 @@
+name: CleanPulse CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Backend Test & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      - name: Install backend dependencies
+        run: uv pip install --system -e "backend[dev]"
+
+      - name: Lint with Ruff
+        run: |
+          ruff check backend/
+          ruff format --check backend/
+
+      - name: Run Pytest suite
+        run: pytest backend/tests/ -v
