@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,7 +50,7 @@ def get_db() -> duckdb.DuckDBPyConnection:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Lifespan context manager initializing DuckDB tables and resources on startup."""
     global _db_connection
     logger.info("Initializing DGHS-CleanPulse API engine...")

@@ -1,5 +1,7 @@
 """Integration tests for the DGHS-CleanPulse FastAPI REST Service."""
 
+from collections.abc import Generator
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -7,7 +9,7 @@ from cleanpulse.api.main import app
 
 
 @pytest.fixture(scope="module")
-def client() -> TestClient:
+def client() -> Generator[TestClient, None, None]:
     """Provide a TestClient instance with startup lifespan context entered."""
     with TestClient(app) as test_client:
         yield test_client
