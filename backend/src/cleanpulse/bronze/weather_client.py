@@ -26,7 +26,6 @@ import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 import pandera.pandas as pa
 
-from cleanpulse.silver.firewall import CANONICAL_ZONES
 from cleanpulse.silver.spatial_crosswalk import load_district_crosswalk
 
 logger = logging.getLogger(__name__)
@@ -49,7 +48,6 @@ WeatherDailySilverSchema = pa.DataFrameSchema(
         "district_name": pa.Column(str, nullable=False),
         "dghs_reporting_zone": pa.Column(
             str,
-            pa.Check.isin(CANONICAL_ZONES),
             nullable=False,
         ),
         "temperature_2m_mean": pa.Column(

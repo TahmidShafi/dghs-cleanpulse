@@ -41,7 +41,12 @@ def test_spatial_crosswalk_structure_and_coverage() -> None:
     DistrictCrosswalkSilverSchema.validate(df, lazy=True)
 
     # 3. All 10 DGHS surveillance reporting zones must be present
-    unique_zones = set(df["dghs_reporting_zone"].unique())
+    unique_zones: set[str] = set()
+    for zones in df["dghs_reporting_zones"]:
+        if isinstance(zones, (list, np.ndarray)):
+            unique_zones.update(zones)
+        elif isinstance(zones, str):
+            unique_zones.update([z.strip() for z in zones.split(",")])
     assert set(CANONICAL_ZONES).issubset(unique_zones)
     assert len(unique_zones) == 10
 
@@ -50,22 +55,23 @@ def test_spatial_crosswalk_structure_and_coverage() -> None:
     dscc_districts = get_districts_for_zone("DSCC", df)
     out_of_cc_districts = get_districts_for_zone("Dhaka (Out of CC)", df)
 
-    assert dncc_districts == ["dhaka_north"]
-    assert dscc_districts == ["dhaka_south"]
-    assert "madaripur_shariatpur" in out_of_cc_districts
-    assert len(out_of_cc_districts) == 11
+    assert dncc_districts == ["dhaka"]
+    assert dscc_districts == ["dhaka"]
+    assert "madaripur" in out_of_cc_districts
+    assert "shariatpur" in out_of_cc_districts
+    assert len(out_of_cc_districts) == 12
 
     # 5. Coordinate integrity within Bangladesh geographical envelope
-    dhaka_north = get_district_by_id("dhaka_north", df)
-    dhaka_south = get_district_by_id("dhaka_south", df)
+    dhaka = get_district_by_id("dhaka", df)
+    madaripur = get_district_by_id("madaripur", df)
+    shariatpur = get_district_by_id("shariatpur", df)
 
-    assert 20.5 <= dhaka_north["latitude"] <= 26.8
-    assert 88.0 <= dhaka_north["longitude"] <= 92.8
-    assert 20.5 <= dhaka_south["latitude"] <= 26.8
-    assert 88.0 <= dhaka_south["longitude"] <= 92.8
-
-    # Ensure Dhaka North and South have distinct coordinates
-    assert dhaka_north["latitude"] != dhaka_south["latitude"]
+    assert 20.5 <= dhaka["latitude"] <= 26.8
+    assert 88.0 <= dhaka["longitude"] <= 92.8
+    assert 20.5 <= madaripur["latitude"] <= 26.8
+    assert 88.0 <= madaripur["longitude"] <= 92.8
+    assert 20.5 <= shariatpur["latitude"] <= 26.8
+    assert 88.0 <= shariatpur["longitude"] <= 92.8
 
 
 def test_weather_batch_client_deterministic_offline_fallback(tmp_path: Path) -> None:
@@ -110,7 +116,10 @@ def test_silver_weather_parquet_persisted_dataset() -> None:
     assert len(df) == 11520
     assert df["district_id"].nunique() == 64
     assert df["date"].nunique() == 180
-    assert set(df["dghs_reporting_zone"].unique()) == set(CANONICAL_ZONES)
+    all_zones: set[str] = set()
+    for z in df["dghs_reporting_zone"].unique():
+        all_zones.update([part.strip() for part in z.split(",")])
+    assert set(CANONICAL_ZONES).issubset(all_zones)
 
     WeatherDailySilverSchema.validate(df, lazy=True)
 

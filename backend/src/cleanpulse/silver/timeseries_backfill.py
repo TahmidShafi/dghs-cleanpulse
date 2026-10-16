@@ -197,7 +197,9 @@ class EpidemiologicalBackfillGenerator:
             target_adm = self.target_admissions.get(zone_name, 1000)
             target_dth = self.target_deaths.get(zone_name, 10)
 
-            zone_weather = weather_df[weather_df["dghs_reporting_zone"] == zone_name]
+            zone_weather = weather_df[
+                weather_df["dghs_reporting_zone"].str.contains(zone_name, regex=False)
+            ]
             if zone_weather.empty:
                 # Fallback to entire weather dataset if zone slice is missing
                 zone_weather = weather_df

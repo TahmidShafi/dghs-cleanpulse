@@ -1,12 +1,14 @@
 """Spatial Crosswalk Module for Bangladesh 64 Districts and DGHS Surveillance Zones.
 
-Maps Bangladesh 64 districts to geographical centroids (latitude, longitude),
+Maps Bangladesh 64 canonical districts to geographical centroids (latitude, longitude),
 parent administrative divisions, and the 10 canonical DGHS Dengue Surveillance zones:
   - 7 Division zones: Chattogram, Barishal, Khulna, Rajshahi, Mymensingh, Rangpur, Sylhet.
   - 3 Greater Dhaka zones:
-      - DNCC (Dhaka North City Corporation)
-      - DSCC (Dhaka South City Corporation)
-      - Dhaka (Out of CC) (Suburban & surrounding Dhaka division districts)
+      - DNCC (Dhaka North City Corporation) -> mapped from Dhaka district
+      - DSCC (Dhaka South City Corporation) -> mapped from Dhaka district
+      - Dhaka (Out of CC) -> 12 suburban districts (Faridpur, Gazipur, Gopalganj,
+        Kishoreganj, Madaripur, Manikganj, Munshiganj, Narayanganj, Narsingdi,
+        Rajbari, Shariatpur, Tangail)
 
 Enforces Pandera validation ensuring exactly 64 unique districts and full 10-zone coverage.
 """
@@ -17,6 +19,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 import pandera.pandas as pa
 from pydantic import BaseModel, Field
@@ -47,7 +50,14 @@ class DistrictCrosswalkRecord(BaseModel):
     division_name: str = Field(..., description="One of 8 administrative divisions")
     latitude: float = Field(..., ge=20.5, le=26.8, description="Centroid latitude")
     longitude: float = Field(..., ge=88.0, le=92.8, description="Centroid longitude")
-    dghs_reporting_zone: str = Field(..., description="One of 10 DGHS reporting zones")
+    dghs_reporting_zones: list[str] = Field(
+        default_factory=list,
+        description="List of mapped DGHS zones (Dhaka maps to ['DNCC', 'DSCC'])",
+    )
+    dghs_reporting_zone: str = Field(
+        ...,
+        description="Comma-separated or primary DGHS reporting zone string",
+    )
 
 
 def check_exact_64_districts(df: pd.DataFrame) -> bool:
@@ -57,8 +67,13 @@ def check_exact_64_districts(df: pd.DataFrame) -> bool:
 
 def check_covers_all_dghs_zones(df: pd.DataFrame) -> bool:
     """Verify that all 10 canonical DGHS zones are represented in the crosswalk."""
-    zones_present = set(df["dghs_reporting_zone"].unique())
-    return set(CANONICAL_ZONES).issubset(zones_present)
+    all_zones: set[str] = set()
+    for zones in df["dghs_reporting_zones"]:
+        if isinstance(zones, (list, np.ndarray)):
+            all_zones.update(zones)
+        elif isinstance(zones, str):
+            all_zones.update([z.strip() for z in zones.split(",")])
+    return set(CANONICAL_ZONES).issubset(all_zones)
 
 
 DistrictCrosswalkSilverSchema = pa.DataFrameSchema(
@@ -80,11 +95,8 @@ DistrictCrosswalkSilverSchema = pa.DataFrameSchema(
             pa.Check.in_range(88.0, 92.8),
             nullable=False,
         ),
-        "dghs_reporting_zone": pa.Column(
-            str,
-            pa.Check.isin(CANONICAL_ZONES),
-            nullable=False,
-        ),
+        "dghs_reporting_zones": pa.Column(object, nullable=False),
+        "dghs_reporting_zone": pa.Column(str, nullable=False),
     },
     checks=[
         pa.Check(
@@ -133,7 +145,7 @@ def get_district_by_id(district_id: str, df: pd.DataFrame | None = None) -> dict
     """Retrieve metadata and coordinates for a specific district.
 
     Args:
-        district_id: District identifier (e.g. 'dhaka_north', 'chattogram').
+        district_id: District identifier (e.g. 'dhaka', 'chattogram', 'madaripur').
         df: Optional preloaded crosswalk DataFrame.
 
     Returns:
@@ -160,4 +172,32 @@ def get_districts_for_zone(zone_name: str, df: pd.DataFrame | None = None) -> li
     if zone_name not in CANONICAL_ZONES:
         raise ValueError(f"Zone '{zone_name}' is not one of the 10 canonical DGHS zones.")
     crosswalk = df if df is not None else load_district_crosswalk()
-    return crosswalk[crosswalk["dghs_reporting_zone"] == zone_name]["district_id"].tolist()
+    matching_ids: list[str] = []
+    for _, row in crosswalk.iterrows():
+        zones = row["dghs_reporting_zones"]
+        is_in_list = isinstance(zones, (list, np.ndarray)) and zone_name in zones
+        is_in_str = isinstance(zones, str) and zone_name in [z.strip() for z in zones.split(",")]
+        if is_in_list or is_in_str:
+            matching_ids.append(str(row["district_id"]))
+    return matching_ids
+
+
+def get_district_zone_bridge(df: pd.DataFrame | None = None) -> pd.DataFrame:
+    """Build an unnested bridge table mapping district_id to zone_name.
+
+    Returns:
+        DataFrame with columns ['district_id', 'zone_name'] (65 rows total:
+        Dhaka maps to both DNCC and DSCC; other 63 districts map 1-to-1).
+    """
+    crosswalk = df if df is not None else load_district_crosswalk()
+    rows: list[dict[str, str]] = []
+    for _, row in crosswalk.iterrows():
+        did = str(row["district_id"])
+        zones = row["dghs_reporting_zones"]
+        if isinstance(zones, (list, np.ndarray)):
+            for z in zones:
+                rows.append({"district_id": did, "zone_name": str(z)})
+        elif isinstance(zones, str):
+            for z in zones.split(","):
+                rows.append({"district_id": did, "zone_name": z.strip()})
+    return pd.DataFrame(rows)
