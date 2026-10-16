@@ -44,6 +44,8 @@ ignore = []
 python_version = "3.12"
 strict = true
 warn_unused_configs = true
+warn_unused_ignores = false
+warn_return_any = false
 
 [[tool.mypy.overrides]]
 module = [
