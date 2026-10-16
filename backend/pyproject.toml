@@ -44,3 +44,13 @@ ignore = []
 python_version = "3.12"
 strict = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pandas",
+    "pandas.*",
+    "pandera",
+    "pandera.*",
+]
+ignore_missing_imports = true
+
