@@ -1,0 +1,514 @@
+[
+  {
+    "district_id": "barguna",
+    "district_name": "Barguna",
+    "division_name": "Barishal",
+    "latitude": 22.1570,
+    "longitude": 90.1250,
+    "dghs_reporting_zone": "Barishal"
+  },
+  {
+    "district_id": "barishal",
+    "district_name": "Barishal",
+    "division_name": "Barishal",
+    "latitude": 22.7010,
+    "longitude": 90.3535,
+    "dghs_reporting_zone": "Barishal"
+  },
+  {
+    "district_id": "bhola",
+    "district_name": "Bhola",
+    "division_name": "Barishal",
+    "latitude": 22.6859,
+    "longitude": 90.6481,
+    "dghs_reporting_zone": "Barishal"
+  },
+  {
+    "district_id": "jhalokati",
+    "district_name": "Jhalokati",
+    "division_name": "Barishal",
+    "latitude": 22.6406,
+    "longitude": 90.1987,
+    "dghs_reporting_zone": "Barishal"
+  },
+  {
+    "district_id": "patuakhali",
+    "district_name": "Patuakhali",
+    "division_name": "Barishal",
+    "latitude": 22.3596,
+    "longitude": 90.3299,
+    "dghs_reporting_zone": "Barishal"
+  },
+  {
+    "district_id": "pirojpur",
+    "district_name": "Pirojpur",
+    "division_name": "Barishal",
+    "latitude": 22.5841,
+    "longitude": 89.9720,
+    "dghs_reporting_zone": "Barishal"
+  },
+  {
+    "district_id": "bandarban",
+    "district_name": "Bandarban",
+    "division_name": "Chattogram",
+    "latitude": 22.1953,
+    "longitude": 92.2184,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "brahmanbaria",
+    "district_name": "Brahmanbaria",
+    "division_name": "Chattogram",
+    "latitude": 23.9571,
+    "longitude": 91.1119,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "chandpur",
+    "district_name": "Chandpur",
+    "division_name": "Chattogram",
+    "latitude": 23.2333,
+    "longitude": 90.6667,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "chattogram",
+    "district_name": "Chattogram",
+    "division_name": "Chattogram",
+    "latitude": 22.3569,
+    "longitude": 91.7832,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "coxs_bazar",
+    "district_name": "Cox's Bazar",
+    "division_name": "Chattogram",
+    "latitude": 21.4272,
+    "longitude": 92.0058,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "cumilla",
+    "district_name": "Cumilla",
+    "division_name": "Chattogram",
+    "latitude": 23.4682,
+    "longitude": 91.1788,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "feni",
+    "district_name": "Feni",
+    "division_name": "Chattogram",
+    "latitude": 23.0186,
+    "longitude": 91.3966,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "khagrachhari",
+    "district_name": "Khagrachhari",
+    "division_name": "Chattogram",
+    "latitude": 23.1193,
+    "longitude": 91.9847,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "lakshmipur",
+    "district_name": "Lakshmipur",
+    "division_name": "Chattogram",
+    "latitude": 22.9425,
+    "longitude": 90.8412,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "noakhali",
+    "district_name": "Noakhali",
+    "division_name": "Chattogram",
+    "latitude": 22.8696,
+    "longitude": 91.0994,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "rangamati",
+    "district_name": "Rangamati",
+    "division_name": "Chattogram",
+    "latitude": 22.7324,
+    "longitude": 92.2985,
+    "dghs_reporting_zone": "Chattogram"
+  },
+  {
+    "district_id": "dhaka_north",
+    "district_name": "Dhaka North",
+    "division_name": "Dhaka",
+    "latitude": 23.8103,
+    "longitude": 90.4125,
+    "dghs_reporting_zone": "DNCC"
+  },
+  {
+    "district_id": "dhaka_south",
+    "district_name": "Dhaka South",
+    "division_name": "Dhaka",
+    "latitude": 23.7275,
+    "longitude": 90.4080,
+    "dghs_reporting_zone": "DSCC"
+  },
+  {
+    "district_id": "faridpur",
+    "district_name": "Faridpur",
+    "division_name": "Dhaka",
+    "latitude": 23.6071,
+    "longitude": 89.8429,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "gazipur",
+    "district_name": "Gazipur",
+    "division_name": "Dhaka",
+    "latitude": 24.0023,
+    "longitude": 90.4264,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "gopalganj",
+    "district_name": "Gopalganj",
+    "division_name": "Dhaka",
+    "latitude": 23.0051,
+    "longitude": 89.8266,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "kishoreganj",
+    "district_name": "Kishoreganj",
+    "division_name": "Dhaka",
+    "latitude": 24.4449,
+    "longitude": 90.7766,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "madaripur_shariatpur",
+    "district_name": "Madaripur-Shariatpur",
+    "division_name": "Dhaka",
+    "latitude": 23.1667,
+    "longitude": 90.1833,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "manikganj",
+    "district_name": "Manikganj",
+    "division_name": "Dhaka",
+    "latitude": 23.8617,
+    "longitude": 90.0003,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "munshiganj",
+    "district_name": "Munshiganj",
+    "division_name": "Dhaka",
+    "latitude": 23.5422,
+    "longitude": 90.5305,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "narayanganj",
+    "district_name": "Narayanganj",
+    "division_name": "Dhaka",
+    "latitude": 23.6238,
+    "longitude": 90.5000,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "narsingdi",
+    "district_name": "Narsingdi",
+    "division_name": "Dhaka",
+    "latitude": 23.9193,
+    "longitude": 90.7202,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "rajbari",
+    "district_name": "Rajbari",
+    "division_name": "Dhaka",
+    "latitude": 23.7574,
+    "longitude": 89.6445,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "tangail",
+    "district_name": "Tangail",
+    "division_name": "Dhaka",
+    "latitude": 24.2513,
+    "longitude": 89.9167,
+    "dghs_reporting_zone": "Dhaka (Out of CC)"
+  },
+  {
+    "district_id": "bagerhat",
+    "district_name": "Bagerhat",
+    "division_name": "Khulna",
+    "latitude": 22.6516,
+    "longitude": 89.7859,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "chuadanga",
+    "district_name": "Chuadanga",
+    "division_name": "Khulna",
+    "latitude": 23.6402,
+    "longitude": 88.8418,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "jashore",
+    "district_name": "Jashore",
+    "division_name": "Khulna",
+    "latitude": 23.1664,
+    "longitude": 89.2138,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "jhenaidah",
+    "district_name": "Jhenaidah",
+    "division_name": "Khulna",
+    "latitude": 23.5450,
+    "longitude": 89.1726,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "khulna",
+    "district_name": "Khulna",
+    "division_name": "Khulna",
+    "latitude": 22.8456,
+    "longitude": 89.5403,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "kushtia",
+    "district_name": "Kushtia",
+    "division_name": "Khulna",
+    "latitude": 23.9013,
+    "longitude": 89.1205,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "magura",
+    "district_name": "Magura",
+    "division_name": "Khulna",
+    "latitude": 23.4873,
+    "longitude": 89.4198,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "meherpur",
+    "district_name": "Meherpur",
+    "division_name": "Khulna",
+    "latitude": 23.7725,
+    "longitude": 88.6318,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "narail",
+    "district_name": "Narail",
+    "division_name": "Khulna",
+    "latitude": 23.1725,
+    "longitude": 89.5127,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "satkhira",
+    "district_name": "Satkhira",
+    "division_name": "Khulna",
+    "latitude": 22.7185,
+    "longitude": 89.0705,
+    "dghs_reporting_zone": "Khulna"
+  },
+  {
+    "district_id": "jamalpur",
+    "district_name": "Jamalpur",
+    "division_name": "Mymensingh",
+    "latitude": 24.9375,
+    "longitude": 89.9378,
+    "dghs_reporting_zone": "Mymensingh"
+  },
+  {
+    "district_id": "mymensingh",
+    "district_name": "Mymensingh",
+    "division_name": "Mymensingh",
+    "latitude": 24.7471,
+    "longitude": 90.4203,
+    "dghs_reporting_zone": "Mymensingh"
+  },
+  {
+    "district_id": "netrokona",
+    "district_name": "Netrokona",
+    "division_name": "Mymensingh",
+    "latitude": 24.8709,
+    "longitude": 90.7279,
+    "dghs_reporting_zone": "Mymensingh"
+  },
+  {
+    "district_id": "sherpur",
+    "district_name": "Sherpur",
+    "division_name": "Mymensingh",
+    "latitude": 25.0205,
+    "longitude": 90.0153,
+    "dghs_reporting_zone": "Mymensingh"
+  },
+  {
+    "district_id": "bogura",
+    "district_name": "Bogura",
+    "division_name": "Rajshahi",
+    "latitude": 24.8465,
+    "longitude": 89.3770,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "joypurhat",
+    "district_name": "Joypurhat",
+    "division_name": "Rajshahi",
+    "latitude": 25.1011,
+    "longitude": 89.0270,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "naogaon",
+    "district_name": "Naogaon",
+    "division_name": "Rajshahi",
+    "latitude": 24.7936,
+    "longitude": 88.9318,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "natore",
+    "district_name": "Natore",
+    "division_name": "Rajshahi",
+    "latitude": 24.4206,
+    "longitude": 88.9324,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "chapainawabganj",
+    "district_name": "Chapainawabganj",
+    "division_name": "Rajshahi",
+    "latitude": 24.5965,
+    "longitude": 88.2775,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "pabna",
+    "district_name": "Pabna",
+    "division_name": "Rajshahi",
+    "latitude": 24.0064,
+    "longitude": 89.2372,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "rajshahi",
+    "district_name": "Rajshahi",
+    "division_name": "Rajshahi",
+    "latitude": 24.3636,
+    "longitude": 88.6241,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "sirajganj",
+    "district_name": "Sirajganj",
+    "division_name": "Rajshahi",
+    "latitude": 24.4534,
+    "longitude": 89.7008,
+    "dghs_reporting_zone": "Rajshahi"
+  },
+  {
+    "district_id": "dinajpur",
+    "district_name": "Dinajpur",
+    "division_name": "Rangpur",
+    "latitude": 25.6217,
+    "longitude": 88.6355,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "gaibandha",
+    "district_name": "Gaibandha",
+    "division_name": "Rangpur",
+    "latitude": 25.3288,
+    "longitude": 89.5430,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "kurigram",
+    "district_name": "Kurigram",
+    "division_name": "Rangpur",
+    "latitude": 25.8054,
+    "longitude": 89.6362,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "lalmonirhat",
+    "district_name": "Lalmonirhat",
+    "division_name": "Rangpur",
+    "latitude": 25.9923,
+    "longitude": 89.2847,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "nilphamari",
+    "district_name": "Nilphamari",
+    "division_name": "Rangpur",
+    "latitude": 25.9318,
+    "longitude": 88.8560,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "panchagarh",
+    "district_name": "Panchagarh",
+    "division_name": "Rangpur",
+    "latitude": 26.3411,
+    "longitude": 88.5542,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "rangpur",
+    "district_name": "Rangpur",
+    "division_name": "Rangpur",
+    "latitude": 25.7439,
+    "longitude": 89.2752,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "thakurgaon",
+    "district_name": "Thakurgaon",
+    "division_name": "Rangpur",
+    "latitude": 26.0337,
+    "longitude": 88.4617,
+    "dghs_reporting_zone": "Rangpur"
+  },
+  {
+    "district_id": "habiganj",
+    "district_name": "Habiganj",
+    "division_name": "Sylhet",
+    "latitude": 24.3750,
+    "longitude": 91.4167,
+    "dghs_reporting_zone": "Sylhet"
+  },
+  {
+    "district_id": "moulvibazar",
+    "district_name": "Moulvibazar",
+    "division_name": "Sylhet",
+    "latitude": 24.4829,
+    "longitude": 91.7774,
+    "dghs_reporting_zone": "Sylhet"
+  },
+  {
+    "district_id": "sunamganj",
+    "district_name": "Sunamganj",
+    "division_name": "Sylhet",
+    "latitude": 25.0658,
+    "longitude": 91.3950,
+    "dghs_reporting_zone": "Sylhet"
+  },
+  {
+    "district_id": "sylhet",
+    "district_name": "Sylhet",
+    "division_name": "Sylhet",
+    "latitude": 24.8949,
+    "longitude": 91.8687,
+    "dghs_reporting_zone": "Sylhet"
+  }
+]
