@@ -20,7 +20,7 @@ from typing import Any
 
 import pandas as pd  # type: ignore[import-untyped]
 import pandera.pandas as pa
-from pandera.typing import Series  # noqa: F401
+from pandera.typing import Series
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +59,17 @@ CANONICAL_ZONES: list[str] = [
     "Sylhet",
 ]
 
+
+def check_raw_gender_sum(df: pd.DataFrame) -> Series[bool]:
+    """Validate that male + female equals reported total for raw age groups."""
+    return df["male"] + df["female"] == df["total"]
+
+
+def check_reconciled_gender_sum(df: pd.DataFrame) -> Series[bool]:
+    """Validate that male_cases + female_cases equals reconciled_total for sanitized cohorts."""
+    return df["male_cases"] + df["female_cases"] == df["reconciled_total"]
+
+
 # ---------------------------------------------------------------------------
 # Stage 2A: Raw Audit Schema (lazy=True diagnostic scan)
 # ---------------------------------------------------------------------------
@@ -77,7 +88,7 @@ RawAuditSchema = pa.DataFrameSchema(
     },
     checks=[
         pa.Check(
-            lambda df: df["male"] + df["female"] == df["total"],
+            check_raw_gender_sum,
             error="Row sum mismatch: male + female != total",
             name="gender_sum_check",
         )
@@ -104,7 +115,7 @@ DGHSAgeGroupSilverSchema = pa.DataFrameSchema(
     },
     checks=[
         pa.Check(
-            lambda df: df["male_cases"] + df["female_cases"] == df["reconciled_total"],
+            check_reconciled_gender_sum,
             error="Reconciled total must equal male_cases + female_cases",
             name="reconciled_gender_sum_check",
         )
