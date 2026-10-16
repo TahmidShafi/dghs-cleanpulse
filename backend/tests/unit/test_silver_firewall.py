@@ -11,6 +11,7 @@ from cleanpulse.bronze.dghs_scraper import DEFAULT_FIXTURE_PATH, DGHSBronzeScrap
 from cleanpulse.silver.firewall import (
     CANONICAL_AGE_GROUPS,
     CANONICAL_ZONES,
+    AuditAnomalySilverSchema,
     DGHSAgeGroupSilverSchema,
     DGHSDivisionSilverSchema,
     SilverSanitizerFirewall,
@@ -157,6 +158,11 @@ def test_cross_column_arithmetic_reconciler(
     assert row_21_25["female_cases"] == 2375
     assert row_21_25["reported_total"] == 5390
     assert row_21_25["reconciled_total"] == 5380  # 3005 + 2375
+    assert row_21_25["arithmetic_delta"] == 10
+
+    # Ensure clean cohorts have zero delta
+    clean_cohorts = sanitized_df[sanitized_df["age_group"] != "21-25"]
+    assert (clean_cohorts["arithmetic_delta"] == 0).all()
 
     sum_anom = next(a for a in anomalies if a["anomaly_type"] == "GENDER_SUM_MISMATCH")
     assert sum_anom["row_key"] == "21-25"
@@ -190,6 +196,12 @@ def test_final_silver_schemas_and_parquet_persistence(
     # 3. Enforce that read-back DataFrames adhere strictly to Pandera schemas
     DGHSAgeGroupSilverSchema.validate(df_age_read, lazy=True)
     DGHSDivisionSilverSchema.validate(df_zones_read, lazy=True)
+    AuditAnomalySilverSchema.validate(df_anom_read, lazy=True)
+
+    # Validate arithmetic delta in read-back age table
+    assert "arithmetic_delta" in df_age_read.columns
+    assert df_age_read[df_age_read["age_group"] == "21-25"]["arithmetic_delta"].iloc[0] == 10
+    assert (df_age_read[df_age_read["age_group"] != "21-25"]["arithmetic_delta"] == 0).all()
 
     # 4. Assert row counts and integrity
     # 10 official zones

@@ -111,6 +111,7 @@ DGHSAgeGroupSilverSchema = pa.DataFrameSchema(
         "female_cases": pa.Column(pa.Int64, pa.Check.ge(0), nullable=False),
         "reported_total": pa.Column(pa.Int64, pa.Check.ge(0), nullable=False),
         "reconciled_total": pa.Column(pa.Int64, pa.Check.ge(0), nullable=False),
+        "arithmetic_delta": pa.Column(pa.Int64, nullable=False),
         "deaths": pa.Column(pa.Int64, pa.Check.ge(0), nullable=False),
     },
     checks=[
@@ -142,7 +143,7 @@ DGHSDivisionSilverSchema = pa.DataFrameSchema(
     coerce=True,
 )
 
-AuditAnomalySchema = pa.DataFrameSchema(
+AuditAnomalySilverSchema = pa.DataFrameSchema(
     columns={
         "anomaly_id": pa.Column(str, nullable=False, unique=True),
         "detected_at_utc": pa.Column(str, nullable=False),
@@ -173,6 +174,8 @@ AuditAnomalySchema = pa.DataFrameSchema(
     strict=True,
     coerce=True,
 )
+
+AuditAnomalySchema = AuditAnomalySilverSchema
 
 
 @dataclass
@@ -428,6 +431,7 @@ class SilverSanitizerFirewall:
                     "female_cases": female_c,
                     "reported_total": rep_tot,
                     "reconciled_total": reconciled_tot,
+                    "arithmetic_delta": delta,
                     "deaths": data["deaths"],
                 }
             )
@@ -538,7 +542,7 @@ class SilverSanitizerFirewall:
         validated_zones_df = DGHSDivisionSilverSchema.validate(sanitized_zones_df, lazy=True)
 
         anomalies_df = pd.DataFrame(anomalies)
-        validated_anomalies_df = AuditAnomalySchema.validate(anomalies_df, lazy=True)
+        validated_anomalies_df = AuditAnomalySilverSchema.validate(anomalies_df, lazy=True)
 
         # 5. Parquet Exports
         age_parquet_path = target_dir / "dengue_age_groups.parquet"
