@@ -5,8 +5,10 @@
 
 FROM python:3.12-slim
 
-# Install curl for container healthchecks
-RUN apt-get update && apt-get install -y --no-install-recommends curl \
+# Install system dependencies required for build/runtime (curl, build-essential)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install official uv binary
@@ -14,18 +16,17 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
 WORKDIR /app
 
-# Cache dependency resolution layer
-COPY backend/pyproject.toml backend/uv.lock ./backend/
+# Copy the entire backend folder first so pyproject.toml can find README.md and src/ during build
+COPY backend/ ./backend/
+
+# Run uv sync to create virtual environment and install dependencies
 RUN uv sync --frozen --no-dev --project backend
 
-# Copy backend source code and data directory for in-memory DuckDB loading
-COPY backend/ ./backend/
+# Copy the rest of the workspace data directory (Parquet snapshots & reference data)
 COPY data/ ./data/
 
-# Install the cleanpulse package into the virtual environment
-RUN uv pip install -e backend/ --python /app/backend/.venv/bin/python
-
 # Environment configuration
+ENV PYTHONPATH=/app/backend/src
 ENV PORT=8000
 ENV PATH="/app/backend/.venv/bin:$PATH"
 
