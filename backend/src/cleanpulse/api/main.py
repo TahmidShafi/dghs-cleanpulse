@@ -41,11 +41,49 @@ GOLD_LAGS_PARQUET = GOLD_DIR / "zone_lag_correlations.parquet"
 _db_connection: duckdb.DuckDBPyConnection | None = None
 
 
+def _init_db() -> None:
+    """Initialize in-memory DuckDB database and pre-load all analytical tables."""
+    global _db_connection
+    if _db_connection is not None:
+        return
+
+    logger.info("Pre-loading analytical Parquet tables into DuckDB in-memory engine...")
+    con = duckdb.connect()
+
+    gold_daily_p = str(GOLD_DAILY_PARQUET).replace("\\", "/")
+    lags_p = str(GOLD_LAGS_PARQUET).replace("\\", "/")
+    age_p = str(AGE_PARQUET).replace("\\", "/")
+    anom_p = str(ANOMALIES_PARQUET).replace("\\", "/")
+    zones_p = str(ZONES_PARQUET).replace("\\", "/")
+    weather_p = str(WEATHER_PARQUET).replace("\\", "/")
+
+    if GOLD_DAILY_PARQUET.exists():
+        con.execute(f"CREATE TABLE gold_zone_daily AS SELECT * FROM read_parquet('{gold_daily_p}')")
+    if GOLD_LAGS_PARQUET.exists():
+        con.execute(f"CREATE TABLE gold_lag_correlations AS SELECT * FROM read_parquet('{lags_p}')")
+    if AGE_PARQUET.exists():
+        con.execute(f"CREATE TABLE silver_age_groups AS SELECT * FROM read_parquet('{age_p}')")
+    if ANOMALIES_PARQUET.exists():
+        con.execute(
+            f"CREATE TABLE silver_audit_anomalies AS SELECT * FROM read_parquet('{anom_p}')"
+        )
+    if ZONES_PARQUET.exists():
+        con.execute(f"CREATE TABLE silver_zones_daily AS SELECT * FROM read_parquet('{zones_p}')")
+    if WEATHER_PARQUET.exists():
+        con.execute(
+            f"CREATE TABLE silver_weather_daily AS SELECT * FROM read_parquet('{weather_p}')"
+        )
+
+    _db_connection = con
+    logger.info("DuckDB in-memory tables successfully initialized.")
+
+
 def get_db() -> duckdb.DuckDBPyConnection:
     """Return an isolated cursor connection from the active DuckDB connection pool."""
     global _db_connection
     if _db_connection is None:
-        _db_connection = duckdb.connect()
+        _init_db()
+    assert _db_connection is not None
     return _db_connection.cursor()
 
 
@@ -61,7 +99,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         engine = DuckDBLagEngine(silver_dir=SILVER_DIR, gold_dir=GOLD_DIR)
         engine.build_gold_tables(save_parquet=True)
 
-    _db_connection = duckdb.connect()
+    _init_db()
     logger.info("DuckDB engine ready.")
     yield
     if _db_connection is not None:
@@ -98,20 +136,14 @@ app.add_middleware(
 def get_surveillance_summary() -> dict[str, Any]:
     """Retrieve the latest executive surveillance metrics, 10-zone summary, and age cohorts."""
     con = get_db()
-    gold_daily_p = str(GOLD_DAILY_PARQUET).replace("\\", "/")
-    age_p = str(AGE_PARQUET).replace("\\", "/")
-    anom_p = str(ANOMALIES_PARQUET).replace("\\", "/")
-    lags_p = str(GOLD_LAGS_PARQUET).replace("\\", "/")
 
     # 1. Latest date in gold daily
-    latest_row = con.execute(
-        f"SELECT MAX(report_date) FROM read_parquet('{gold_daily_p}')"
-    ).fetchone()
+    latest_row = con.execute("SELECT MAX(report_date) FROM gold_zone_daily").fetchone()
     report_date = str(latest_row[0]) if latest_row and latest_row[0] else "2026-10-14"
 
     # 2. Zone-level records for latest date
     zones_rows = con.execute(
-        f"""
+        """
         SELECT 
             zone_name,
             daily_admitted,
@@ -122,7 +154,7 @@ def get_surveillance_summary() -> dict[str, Any]:
             ROUND(CASE WHEN total_admitted > 0 
                   THEN (CAST(total_deaths AS DOUBLE) / total_admitted) * 100 
                   ELSE 0.0 END, 2) AS cfr_pct
-        FROM read_parquet('{gold_daily_p}')
+        FROM gold_zone_daily
         WHERE report_date = ?
         ORDER BY total_admitted DESC
         """,
@@ -138,14 +170,14 @@ def get_surveillance_summary() -> dict[str, Any]:
     cfr_pct = round((total_deaths / max(total_admitted, 1)) * 100.0, 2)
 
     # 4. Count of anomalies caught by Silver firewall
-    anom_count_row = con.execute(f"SELECT COUNT(*) FROM read_parquet('{anom_p}')").fetchone()
+    anom_count_row = con.execute("SELECT COUNT(*) FROM silver_audit_anomalies").fetchone()
     anomalies_caught = int(anom_count_row[0]) if anom_count_row else 6
 
     # 5. Optimal lag days for National aggregate
     opt_lag_row = con.execute(
-        f"""
+        """
         SELECT lag_days 
-        FROM read_parquet('{lags_p}')
+        FROM gold_lag_correlations
         WHERE zone_name = 'National'
         ORDER BY pearson_r_humidity DESC
         LIMIT 1
@@ -155,7 +187,7 @@ def get_surveillance_summary() -> dict[str, Any]:
 
     # 6. Age cohorts from silver age groups table
     age_df = con.execute(
-        f"""
+        """
         SELECT 
             report_date,
             age_group,
@@ -165,7 +197,7 @@ def get_surveillance_summary() -> dict[str, Any]:
             reconciled_total,
             arithmetic_delta,
             deaths
-        FROM read_parquet('{age_p}')
+        FROM silver_age_groups
         ORDER BY age_group
         """
     ).fetchdf()
@@ -204,14 +236,12 @@ def get_surveillance_lags(
         )
 
     con = get_db()
-    gold_daily_p = str(GOLD_DAILY_PARQUET).replace("\\", "/")
-    lags_p = str(GOLD_LAGS_PARQUET).replace("\\", "/")
 
     # 1. Retrieve 0..28 day lag correlations for requested zone
     corrs_df = con.execute(
-        f"""
+        """
         SELECT lag_days, pearson_r_precip, pearson_r_humidity, pearson_r_temp, sample_size
-        FROM read_parquet('{lags_p}')
+        FROM gold_lag_correlations
         WHERE zone_name = ?
         ORDER BY lag_days ASC
         """,
@@ -237,7 +267,7 @@ def get_surveillance_lags(
                 ROUND(AVG(precip_7d_avg), 2) AS precip_7d_avg,
                 ROUND(AVG(humidity_7d_avg), 2) AS humidity_7d_avg,
                 ROUND(AVG(avg_temp_7d_avg), 2) AS avg_temp_7d_avg
-            FROM read_parquet('{gold_daily_p}')
+            FROM gold_zone_daily
             GROUP BY report_date
         )
         SELECT 
@@ -261,7 +291,7 @@ def get_surveillance_lags(
             LAG(precip_7d_avg, {lag_days}) OVER (ORDER BY report_date) AS lagged_precip_mm,
             LAG(humidity_7d_avg, {lag_days}) OVER (ORDER BY report_date) AS lagged_humidity_pct,
             LAG(avg_temp_7d_avg, {lag_days}) OVER (ORDER BY report_date) AS lagged_temp_c
-        FROM read_parquet('{gold_daily_p}')
+        FROM gold_zone_daily
         WHERE zone_name = ?
         ORDER BY report_date ASC;
         """
@@ -301,18 +331,15 @@ def get_audit_anomalies(
 ) -> dict[str, Any]:
     """Retrieve audit anomalies with summary counts and multi-attribute filtering."""
     con = get_db()
-    anom_p = str(ANOMALIES_PARQUET).replace("\\", "/")
 
     # 1. Total breakdown counts across the entire anomaly table
-    counts_df = con.execute(
-        f"SELECT severity, anomaly_type FROM read_parquet('{anom_p}')"
-    ).fetchdf()
+    counts_df = con.execute("SELECT severity, anomaly_type FROM silver_audit_anomalies").fetchdf()
 
     severity_counts = counts_df["severity"].value_counts().to_dict()
     type_counts = counts_df["anomaly_type"].value_counts().to_dict()
 
     # 2. Filter records based on query parameters
-    query = f"SELECT * FROM read_parquet('{anom_p}') WHERE 1=1"
+    query = "SELECT * FROM silver_audit_anomalies WHERE 1=1"
     params: list[str] = []
 
     if severity != "ALL":
@@ -357,19 +384,18 @@ def get_pipeline_health() -> dict[str, Any]:
     # 1. Count Bronze snapshots
     bronze_snapshots = len(list(BRONZE_DIR.glob("*.json"))) if BRONZE_DIR.exists() else 1
 
-    # 2. Parquet row counts
-    def _count_parquet(p: Path) -> int:
+    # 2. In-memory table row counts
+    def _count_table(table_name: str, p: Path) -> int:
         if not p.exists():
             return 0
-        path_str = str(p).replace("\\", "/")
-        row = con.execute(f"SELECT COUNT(*) FROM read_parquet('{path_str}')").fetchone()
+        row = con.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()
         return int(row[0]) if row is not None else 0
 
-    silver_dengue_rows = _count_parquet(ZONES_PARQUET)
-    silver_weather_rows = _count_parquet(WEATHER_PARQUET)
-    silver_anomaly_rows = _count_parquet(ANOMALIES_PARQUET)
-    gold_daily_rows = _count_parquet(GOLD_DAILY_PARQUET)
-    gold_lag_rows = _count_parquet(GOLD_LAGS_PARQUET)
+    silver_dengue_rows = _count_table("silver_zones_daily", ZONES_PARQUET)
+    silver_weather_rows = _count_table("silver_weather_daily", WEATHER_PARQUET)
+    silver_anomaly_rows = _count_table("silver_audit_anomalies", ANOMALIES_PARQUET)
+    gold_daily_rows = _count_table("gold_zone_daily", GOLD_DAILY_PARQUET)
+    gold_lag_rows = _count_table("gold_lag_correlations", GOLD_LAGS_PARQUET)
 
     layer_counts = {
         "bronze_snapshots": bronze_snapshots,
