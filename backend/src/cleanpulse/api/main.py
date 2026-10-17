@@ -126,6 +126,32 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
+# Endpoint 0: GET /
+# ---------------------------------------------------------------------------
+@app.get(
+    "/",
+    summary="Root API directory and service discovery",
+    tags=["Discovery"],
+)
+def root() -> dict[str, Any]:
+    """Provide service discovery metadata, health status, and links to documentation."""
+    return {
+        "service": "DGHS-CleanPulse Surveillance & Climate Analytics API",
+        "version": "0.1.0",
+        "status": "online",
+        "docs_url": "/docs",
+        "redoc_url": "/redoc",
+        "openapi_url": "/openapi.json",
+        "endpoints": {
+            "surveillance_summary": "/v1/surveillance/summary",
+            "surveillance_lags": "/v1/surveillance/lags",
+            "audit_anomalies": "/v1/audit/anomalies",
+            "pipeline_health": "/v1/health/pipeline",
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Endpoint 1: GET /v1/surveillance/summary
 # ---------------------------------------------------------------------------
 @app.get(

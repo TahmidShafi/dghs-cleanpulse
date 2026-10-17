@@ -15,6 +15,17 @@ def client() -> Generator[TestClient, None, None]:
         yield test_client
 
 
+def test_root_endpoint(client: TestClient) -> None:
+    """Verify GET / returns service metadata and discovery links."""
+    response = client.get("/")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["service"] == "DGHS-CleanPulse Surveillance & Climate Analytics API"
+    assert data["status"] == "online"
+    assert data["docs_url"] == "/docs"
+    assert "surveillance_summary" in data["endpoints"]
+
+
 def test_surveillance_summary_endpoint(client: TestClient) -> None:
     """Verify GET /v1/surveillance/summary returns valid KPIs, zones, and age cohorts."""
     response = client.get("/v1/surveillance/summary")
