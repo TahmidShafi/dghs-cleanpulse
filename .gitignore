@@ -64,4 +64,6 @@ Thumbs.db
 
 # CI Artifacts
 anomaly_report.md
+split_lock*
+split_lock_json
 
