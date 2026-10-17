@@ -228,9 +228,9 @@ class EpidemiologicalBackfillGenerator:
             for t in range(num_days):
                 # Patients admitted up to 5 days ago have mostly been discharged
                 eligible_adm = total_adm_array[max(0, t - 5)]
-                disch_target = int(max(0, eligible_adm - total_dth_array[t]))
+                disch_target = max(0, eligible_adm - total_dth_array[t])
                 # Enforce that total_discharged <= total_admitted - total_deaths
-                max_allowed = int(max(0, total_adm_array[t] - total_dth_array[t]))
+                max_allowed = max(0, total_adm_array[t] - total_dth_array[t])
                 total_discharged_array[t] = min(disch_target, max_allowed)
 
             # Build daily rows for this zone
