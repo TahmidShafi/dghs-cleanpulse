@@ -8,10 +8,14 @@ on:
 permissions:
   contents: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  PYTHONPATH: backend/src
+
 jobs:
   run-daily-pipeline:
     name: Execute Medallion ETL & Anomaly Audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Check out repository
@@ -20,7 +24,7 @@ jobs:
           fetch-depth: 0
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: "backend/uv.lock"
@@ -38,19 +42,7 @@ jobs:
         run: uv run --project backend python -m cleanpulse.cli run-all
 
       - name: Generate Markdown Anomaly Audit Report
-        run: |
-          uv run --project backend python -c "
-          import duckdb
-          con = duckdb.connect()
-          rows = con.execute('SELECT anomaly_id, anomaly_type, severity, row_key, raw_value, repaired_value, explanation FROM read_parquet(\"data/silver/audit_anomalies.parquet\")').fetchall()
-          with open('anomaly_report.md', 'w', encoding='utf-8') as f:
-              f.write('# DGHS Daily Surveillance Anomaly Audit Report\n\n')
-              f.write(f'**Total Upstream Anomalies Intercepted**: {len(rows)}\n\n')
-              f.write('| Anomaly ID | Anomaly Type | Severity | Target Row | Raw Upstream Value | Repaired / Quarantined |\n')
-              f.write('| :--- | :--- | :--- | :--- | :--- | :--- |\n')
-              for r in rows:
-                  f.write(f'| {r[0]} | `{r[1]}` | **{r[2]}** | {r[3]} | `{r[4]}` | {r[5]} |\n')
-          "
+        run: uv run --project backend python -m cleanpulse.cli export-report --output anomaly_report.md
 
       - name: Upload Anomaly Audit Artifact
         uses: actions/upload-artifact@v4
@@ -65,9 +57,10 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data/silver/*.parquet data/gold/*.parquet frontend/public/data/fallback_snapshot.json
-          if ! git diff --cached --quiet; then
+          if [ -n "$(git status --porcelain)" ]; then
             git commit -m "chore(data): auto-update daily silver, gold, and snapshot artifacts [skip ci]"
+            git pull --rebase origin main
             git push origin main
           else
-            echo "No data changes detected in daily ETL run."
+            echo "No data changes to commit in daily ETL run."
           fi

@@ -315,9 +315,22 @@ class OpenMeteoWeatherClient:
                 logger.info("Successfully fetched and validated live Open-Meteo climate records.")
             except Exception as exc:
                 logger.warning(
-                    "Online Open-Meteo query failed (%s). Falling back to deterministic generator.",
+                    "Online Open-Meteo query failed (%s). Checking for verified cache.",
                     exc,
                 )
+                if output_parquet is not None and Path(output_parquet).exists():
+                    try:
+                        df_cached = pd.read_parquet(output_parquet)
+                        num_days = len(self.generate_dates(start_date, end_date))
+                        expected_len = len(districts) * num_days
+                        if len(df_cached) == expected_len:
+                            logger.info(
+                                "Reusing existing verified weather parquet (%d rows)",
+                                len(df_cached),
+                            )
+                            return df_cached
+                    except Exception:
+                        pass
                 df_result = self.generate_offline_fallback(districts, start_date, end_date)
 
         if output_parquet is not None:

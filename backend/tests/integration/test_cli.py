@@ -88,3 +88,13 @@ def test_cli_run_all_offline_verifies_all_medallion_artifacts() -> None:
     assert "audit_anomalies" in snapshot_data
     assert "pipeline_health" in snapshot_data
     assert len(snapshot_data["audit_anomalies"]["anomalies"]) == 6
+
+
+def test_cli_export_report(tmp_path: Path) -> None:
+    """Verify cleanpulse export-report generates valid markdown report."""
+    report_file = tmp_path / "test_anomaly_report.md"
+    assert main(["export-report", "--output", str(report_file)]) == 0
+    assert report_file.exists()
+    content = report_file.read_text(encoding="utf-8")
+    assert "# DGHS Daily Surveillance Anomaly Audit Report" in content
+    assert "Total Upstream Anomalies Intercepted" in content

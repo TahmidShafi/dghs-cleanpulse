@@ -61,3 +61,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+
+# CI Artifacts
+anomaly_report.md
+

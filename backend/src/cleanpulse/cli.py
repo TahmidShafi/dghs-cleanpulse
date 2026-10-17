@@ -73,13 +73,30 @@ def run_scrape_bronze(offline: bool = False) -> list[StageResult]:
     weather_target = SILVER_DIR / "weather_districts_daily.parquet"
     if offline and weather_target.exists():
         import pandas as pd
+
         weather_df = pd.read_parquet(weather_target)
     else:
-        weather_client = OpenMeteoWeatherClient()
-        weather_df = weather_client.fetch_climate_data(
-            force_offline=offline,
-            output_parquet=weather_target,
-        )
+        try:
+            weather_client = OpenMeteoWeatherClient()
+            weather_df = weather_client.fetch_climate_data(
+                force_offline=offline,
+                output_parquet=weather_target,
+            )
+        except Exception as exc:
+            logger.warning(
+                "Live weather query raised error (%s); falling back to cached table.",
+                exc,
+            )
+            import pandas as pd
+
+            if weather_target.exists():
+                weather_df = pd.read_parquet(weather_target)
+            else:
+                weather_client = OpenMeteoWeatherClient()
+                weather_df = weather_client.fetch_climate_data(
+                    force_offline=True,
+                    output_parquet=weather_target,
+                )
     dur_weather = time.perf_counter() - t0
     results.append(
         StageResult(
@@ -228,6 +245,60 @@ def run_export_snapshot() -> list[StageResult]:
     return results
 
 
+def run_export_report(output_path: Path | None = None) -> StageResult:
+    """Generate Markdown Anomaly Audit Report from Silver audit anomalies."""
+    t0 = time.perf_counter()
+    if output_path is None:
+        target_path = REPO_ROOT / "anomaly_report.md"
+    elif output_path.is_absolute():
+        target_path = output_path
+    else:
+        target_path = REPO_ROOT / output_path
+
+    anomalies_parquet = SILVER_DIR / "audit_anomalies.parquet"
+    if not anomalies_parquet.exists():
+        raise FileNotFoundError(f"Missing {anomalies_parquet}")
+
+    import duckdb
+
+    con = duckdb.connect()
+    query = (
+        "SELECT anomaly_id, anomaly_type, severity, row_key, "
+        "raw_value, repaired_value, explanation "
+        "FROM read_parquet(?) ORDER BY anomaly_id"
+    )
+    rows = con.execute(query, [str(anomalies_parquet)]).fetchall()
+
+    lines = [
+        "# DGHS Daily Surveillance Anomaly Audit Report\n",
+        f"**Total Upstream Anomalies Intercepted**: {len(rows)}\n",
+        (
+            "| Anomaly ID | Anomaly Type | Severity | Target Row | "
+            "Raw Upstream Value | Repaired / Quarantined | Explanation |"
+        ),
+        "| :--- | :--- | :--- | :--- | :--- | :--- | :--- |",
+    ]
+    for r in rows:
+        lines.append(f"| {r[0]} | `{r[1]}` | **{r[2]}** | {r[3]} | `{r[4]}` | {r[5]} | {r[6]} |")
+
+    target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    dur = time.perf_counter() - t0
+    logger.info("Exported markdown anomaly report to %s (%d records)", target_path, len(rows))
+
+    try:
+        out_str = str(target_path.relative_to(REPO_ROOT))
+    except ValueError:
+        out_str = str(target_path)
+
+    return StageResult(
+        stage_name="7. Anomaly Audit Report",
+        status="SUCCESS",
+        metrics=f"{len(rows)} Intercepted Anomalies",
+        duration_sec=dur,
+        output_path=out_str,
+    )
+
+
 def print_summary_table(results: list[StageResult], total_elapsed: float) -> None:
     """Print a formatted ASCII execution summary table to stdout."""
     line = "=" * 94
@@ -278,7 +349,15 @@ def build_parser() -> argparse.ArgumentParser:
         "export-snapshot", help="Generate frontend/public/data/fallback_snapshot.json"
     )
 
-    # 5. run-all
+    # 5. export-report
+    p_report = subparsers.add_parser("export-report", help="Generate Markdown Anomaly Audit Report")
+    p_report.add_argument(
+        "--output",
+        default="anomaly_report.md",
+        help="Path for generated Markdown anomaly report",
+    )
+
+    # 6. run-all
     p_all = subparsers.add_parser("run-all", help="Execute complete Medallion pipeline end-to-end")
     p_all.add_argument(
         "--offline",
@@ -315,11 +394,14 @@ def main(argv: list[str] | None = None) -> int:
             all_results = run_gold_pipeline()
         elif args.subcommand == "export-snapshot":
             all_results = run_export_snapshot()
+        elif args.subcommand == "export-report":
+            all_results.append(run_export_report(Path(args.output)))
         elif args.subcommand == "run-all":
             all_results.extend(run_scrape_bronze(offline=args.offline))
             all_results.extend(run_silver_pipeline())
             all_results.extend(run_gold_pipeline())
             all_results.extend(run_export_snapshot())
+            all_results.append(run_export_report())
         else:
             parser.print_help()
             return 1

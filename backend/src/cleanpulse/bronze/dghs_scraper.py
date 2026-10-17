@@ -110,7 +110,7 @@ class DGHSBronzeScraper:
                     response.raise_for_status()
                     html = response.text
                     return html, self.compute_sha256(html), "live"
-            except (httpx.HTTPError, httpx.TimeoutException) as exc:
+            except Exception as exc:
                 last_error = exc
                 logger.warning(
                     "Attempt %d/%d failed with error: %s",
@@ -255,6 +255,19 @@ class DGHSBronzeScraper:
                         }
                     )
 
+        if (len(zones) == 0 or len(age_groups) == 0) and fetch_source != "fixture":
+            logger.warning(
+                "Live DGHS HTML extracted 0 zones or 0 age groups (possible Cloudflare / "
+                "IP block). Falling back to fixture: %s",
+                self.fixture_path,
+            )
+            fixture_content = self._read_fixture()
+            return self.parse_dashboard(
+                html_content=fixture_content,
+                source_hash=self.compute_sha256(fixture_content),
+                fetch_source="fixture_fallback",
+            )
+
         scraped_at = datetime.now(UTC).isoformat()
         return {
             "metadata": {
@@ -331,11 +344,25 @@ class DGHSBronzeScraper:
         Returns:
             Tuple of (parsed_data_dict, saved_snapshot_path).
         """
-        html_content, source_hash, fetch_source = self.fetch_html(force_offline=force_offline)
-        data = self.parse_dashboard(
-            html_content=html_content,
-            source_hash=source_hash,
-            fetch_source=fetch_source,
-        )
+        try:
+            html_content, source_hash, fetch_source = self.fetch_html(force_offline=force_offline)
+            data = self.parse_dashboard(
+                html_content=html_content,
+                source_hash=source_hash,
+                fetch_source=fetch_source,
+            )
+        except Exception as exc:
+            logger.warning(
+                "DGHS live extraction raised unhandled exception (%s). Falling back to fixture: %s",
+                exc,
+                self.fixture_path,
+            )
+            fixture_html = self._read_fixture()
+            data = self.parse_dashboard(
+                html_content=fixture_html,
+                source_hash=self.compute_sha256(fixture_html),
+                fetch_source="fixture_fallback",
+            )
+
         saved_path = self.save_snapshot(data, output_dir=output_dir)
         return data, saved_path

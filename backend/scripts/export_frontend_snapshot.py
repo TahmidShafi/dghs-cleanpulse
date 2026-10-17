@@ -54,9 +54,7 @@ def export_snapshot() -> None:
         json.dump(payload, f, indent=2)
 
     size_kb = SNAPSHOT_PATH.stat().st_size / 1024.0
-    print(
-        f"Fallback snapshot exported to: {SNAPSHOT_PATH.resolve()} ({size_kb:.1f} KB)"
-    )
+    print(f"Fallback snapshot exported to: {SNAPSHOT_PATH.resolve()} ({size_kb:.1f} KB)")
 
 
 if __name__ == "__main__":

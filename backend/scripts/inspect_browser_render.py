@@ -7,7 +7,7 @@ cmd = [
     "--disable-gpu",
     "--virtual-time-budget=6000",
     "--dump-dom",
-    "http://localhost:3000"
+    "http://localhost:3000",
 ]
 
 print("Launching Chrome headless to inspect http://localhost:3000...")
@@ -30,7 +30,7 @@ checks = [
     "Live FastAPI + DuckDB Connected",
     "Static Gold Snapshot Mode",
     "14 Days",
-    "0.8102"
+    "0.8102",
 ]
 
 for c in checks:
@@ -44,7 +44,7 @@ cmd_lags = [
     "--disable-gpu",
     "--virtual-time-budget=6000",
     "--dump-dom",
-    "http://localhost:3000/#lags"
+    "http://localhost:3000/#lags",
 ]
 proc_lags = subprocess.run(cmd_lags, capture_output=True, text=True, encoding="utf-8")
 html_lags = proc_lags.stdout
@@ -57,7 +57,7 @@ tab2_checks = [
     "DSCC",
     "DNCC",
     "Climate Shift Offset",
-    "Biological Incubation Window: 14–18 Days"
+    "Biological Incubation Window: 14–18 Days",
 ]
 
 for c in tab2_checks:
@@ -72,7 +72,7 @@ cmd_ss1 = [
     "--virtual-time-budget=6000",
     "--window-size=1440,1200",
     f"--screenshot={screenshot1}",
-    "http://localhost:3000/#firewall"
+    "http://localhost:3000/#firewall",
 ]
 subprocess.run(cmd_ss1, capture_output=True)
 
@@ -84,10 +84,9 @@ cmd_ss2 = [
     "--virtual-time-budget=6000",
     "--window-size=1440,1400",
     f"--screenshot={screenshot2}",
-    "http://localhost:3000/#lags"
+    "http://localhost:3000/#lags",
 ]
 subprocess.run(cmd_ss2, capture_output=True)
 
 print(f"Tab 1 Screenshot: {screenshot1} ({os.path.getsize(screenshot1)} bytes)")
 print(f"Tab 2 Screenshot: {screenshot2} ({os.path.getsize(screenshot2)} bytes)")
-
