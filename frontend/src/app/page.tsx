@@ -1,15 +1,15 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { Header } from "../components/Header";
-import { KpiCards } from "../components/KpiCards";
-import { FirewallInspector } from "../components/FirewallInspector";
-import { LagExplorer } from "../components/LagExplorer";
+import { Header } from "@/components/Header";
+import { KpiCards } from "@/components/KpiCards";
+import { FirewallInspector } from "@/components/FirewallInspector";
+import { LagExplorer } from "@/components/LagExplorer";
 import {
   fetchInitialDashboardData,
   fetchZoneLagData,
-} from "../lib/api";
-import { DashboardState, SurveillanceLagsResponse } from "../lib/types";
+} from "@/lib/api";
+import { DashboardState, SurveillanceLagsResponse } from "@/lib/types";
 import { Clock, Database, ShieldCheck } from "lucide-react";
 
 export default function Home() {

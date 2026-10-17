@@ -8,7 +8,7 @@ import {
   Layers,
   Sparkles,
 } from "lucide-react";
-import { AgeCohortItem, AuditAnomaliesResponse } from "../lib/types";
+import { AgeCohortItem, AuditAnomaliesResponse } from "@/lib/types";
 
 interface FirewallInspectorProps {
   anomaliesData: AuditAnomaliesResponse;

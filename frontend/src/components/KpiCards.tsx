@@ -8,7 +8,7 @@ import {
   Skull,
   Users,
 } from "lucide-react";
-import { PipelineHealthResponse, SurveillanceSummaryResponse } from "../lib/types";
+import { PipelineHealthResponse, SurveillanceSummaryResponse } from "@/lib/types";
 
 interface KpiCardsProps {
   summary: SurveillanceSummaryResponse;

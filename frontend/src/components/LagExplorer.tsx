@@ -11,7 +11,7 @@ import {
 import {
   SurveillanceLagsResponse,
   ZoneSummaryItem,
-} from "../lib/types";
+} from "@/lib/types";
 
 interface LagExplorerProps {
   currentZone: string;
