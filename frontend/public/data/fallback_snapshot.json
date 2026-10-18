@@ -2,7 +2,7 @@
   "metadata": {
     "source": "DGHS-CleanPulse DuckDB In-Memory Engine",
     "snapshot_version": "1.0.0",
-    "extracted_at": "2026-10-17T20:16:22.009289+00:00"
+    "extracted_at": "2026-10-18T20:14:53.214119+00:00"
   },
   "surveillance_summary": {
     "report_date": "2026-10-14",
@@ -20456,8 +20456,8 @@
     },
     "anomalies": [
       {
-        "anomaly_id": "ANOM-873411D4",
-        "detected_at_utc": "2026-10-17T20:16:21.490616+00:00",
+        "anomaly_id": "ANOM-91AA005B",
+        "detected_at_utc": "2026-10-18T20:14:52.699939+00:00",
         "table_name": "dengue_age_groups",
         "row_key": "6-10",
         "raw_value": "age_group=6-10 (male=1, female=0, total=1)",
@@ -20467,8 +20467,8 @@
         "explanation": "Non-padded age group '6-10' merged into canonical '06-10' (absorbed 1 cases)"
       },
       {
-        "anomaly_id": "ANOM-99FA3F8C",
-        "detected_at_utc": "2026-10-17T20:16:21.490616+00:00",
+        "anomaly_id": "ANOM-97430583",
+        "detected_at_utc": "2026-10-18T20:14:52.699939+00:00",
         "table_name": "dengue_age_groups",
         "row_key": "0-10",
         "raw_value": "age_group='0-10', male=1, female=0, total=1, deaths=0",
@@ -20478,8 +20478,8 @@
         "explanation": "Overlapping age bucket '0-10' quarantined"
       },
       {
-        "anomaly_id": "ANOM-6A9F3B0F",
-        "detected_at_utc": "2026-10-17T20:16:21.490616+00:00",
+        "anomaly_id": "ANOM-C5A0C4BF",
+        "detected_at_utc": "2026-10-18T20:14:52.699939+00:00",
         "table_name": "dengue_age_groups",
         "row_key": "42309",
         "raw_value": "age_group=42309, male=44, female=19, total=63, deaths=2",
@@ -20489,8 +20489,8 @@
         "explanation": "Excel serial date '42309' decoded to date 2015-11-01; quarantined from primary age cohorts"
       },
       {
-        "anomaly_id": "ANOM-00A13C67",
-        "detected_at_utc": "2026-10-17T20:16:21.490616+00:00",
+        "anomaly_id": "ANOM-F4A5A65E",
+        "detected_at_utc": "2026-10-18T20:14:52.699939+00:00",
         "table_name": "dengue_age_groups",
         "row_key": "46301",
         "raw_value": "age_group=46301, male=36, female=31, total=67, deaths=3",
@@ -20500,8 +20500,8 @@
         "explanation": "Excel serial date '46301' decoded to date 2026-10-06; quarantined from primary age cohorts"
       },
       {
-        "anomaly_id": "ANOM-A9FB631D",
-        "detected_at_utc": "2026-10-17T20:16:21.490616+00:00",
+        "anomaly_id": "ANOM-01AEE695",
+        "detected_at_utc": "2026-10-18T20:14:52.699939+00:00",
         "table_name": "dengue_age_groups",
         "row_key": "<EMPTY>",
         "raw_value": "age_group='', male=4, female=3, total=7, deaths=0",
@@ -20511,8 +20511,8 @@
         "explanation": "Empty age group bucket '' quarantined"
       },
       {
-        "anomaly_id": "ANOM-15834F26",
-        "detected_at_utc": "2026-10-17T20:16:21.490616+00:00",
+        "anomaly_id": "ANOM-F8F249BA",
+        "detected_at_utc": "2026-10-18T20:14:52.699939+00:00",
         "table_name": "dengue_age_groups",
         "row_key": "21-25",
         "raw_value": "reported_total=5390 (male=3005, female=2375, sum=5380)",
@@ -20525,7 +20525,7 @@
   },
   "pipeline_health": {
     "status": "healthy",
-    "timestamp": "2026-10-17T20:16:22.009289+00:00",
+    "timestamp": "2026-10-18T20:14:53.214119+00:00",
     "layer_counts": {
       "bronze_snapshots": 1,
       "silver_dengue_rows": 1800,
@@ -20535,6 +20535,6 @@
       "gold_lag_rows": 319
     },
     "schemas_validated": true,
-    "duckdb_latency_ms": 0.286
+    "duckdb_latency_ms": 0.25
   }
 }
