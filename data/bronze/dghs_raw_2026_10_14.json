@@ -2,7 +2,7 @@
   "metadata": {
     "source_url": "https://dashboard.dghs.gov.bd/pages/heoc_dengue_v1.php",
     "source_hash": "bae590a1bf506c4c213b821f7585b06a50fabd0025fb0a47924458a126a3298f",
-    "scraped_at_utc": "2026-10-29T22:32:10.574967+00:00",
+    "scraped_at_utc": "2026-10-30T22:00:24.664221+00:00",
     "report_date_raw": "Date: 14 October 2026",
     "fetch_source": "fixture_fallback",
     "total_zones_extracted": 10,
