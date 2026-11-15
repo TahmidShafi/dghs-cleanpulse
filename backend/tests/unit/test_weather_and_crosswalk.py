@@ -178,3 +178,58 @@ def test_weather_fails_loudly_without_partial_silver(
 
     assert not silver_parquet.exists()
     assert not list(bronze_dir.rglob("*.json")) if bronze_dir.exists() else True
+
+
+def test_weather_batch_sidecars_share_initial_git_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify all batch sidecars from one ingest run share the initial git_commit and git_dirty."""
+    cw = load_district_crosswalk().head(4).copy()
+    dates = ["2026-10-14"]
+
+    def mock_get(url: str, params: dict[str, str], timeout: float) -> httpx.Response:
+        payload = [
+            {
+                "daily": {
+                    "time": dates,
+                    "temperature_2m_mean": [28.0],
+                    "precipitation_sum": [1.0],
+                    "relative_humidity_2m_mean": [80.0],
+                }
+            }
+            for _ in range(2)
+        ]
+        req = httpx.Request("GET", url, params=params)
+        return httpx.Response(200, request=req, json=payload)
+
+    calls = 0
+
+    def mock_git_provenance() -> tuple[str, bool]:
+        nonlocal calls
+        calls += 1
+        # Simulate working tree becoming dirty after the first batch file is written
+        return ("abc1234", calls > 1)
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+    monkeypatch.setattr("cleanpulse.bronze.weather_client.get_git_provenance", mock_git_provenance)
+    monkeypatch.setattr("cleanpulse.bronze.provenance.get_git_provenance", mock_git_provenance)
+
+    client = OpenMeteoWeatherClient(batch_size=2)
+    bronze_dir = tmp_path / "bronze" / "weather"
+    saved_paths = client.ingest_bronze_batches(
+        crosswalk_df=cw,
+        start_date="2026-10-14",
+        end_date="2026-10-14",
+        bronze_dir=bronze_dir,
+    )
+
+    assert len(saved_paths) == 2
+    sidecars = sorted(bronze_dir.rglob("*.sidecar.json"))
+    assert len(sidecars) == 2
+    provenances = [
+        (data["git_commit"], data["git_dirty"])
+        for data in (json.loads(p.read_text(encoding="utf-8")) for p in sidecars)
+    ]
+    assert provenances == [("abc1234", False), ("abc1234", False)]
+    assert calls == 1
