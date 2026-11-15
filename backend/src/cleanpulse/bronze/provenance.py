@@ -55,6 +55,7 @@ def write_immutable_with_sidecar(
     raw_bytes: bytes,
     target_path: Path,
     sidecar_metadata: dict[str, Any],
+    sidecar_path: Path | None = None,
 ) -> tuple[Path, Path]:
     """Write raw bytes unmodified and a JSON provenance sidecar, refusing overwrites.
 
@@ -62,6 +63,7 @@ def write_immutable_with_sidecar(
         raw_bytes: Unmodified raw payload bytes.
         target_path: Destination path for the raw payload.
         sidecar_metadata: Provenance metadata dictionary (sha256, git_commit, git_dirty added).
+        sidecar_path: Optional explicit sidecar path override.
 
     Returns:
         Tuple of (raw_file_path, sidecar_json_path).
@@ -69,15 +71,17 @@ def write_immutable_with_sidecar(
     Raises:
         FileExistsError: If either target_path or its sidecar already exists.
     """
-    sidecar_path = (
+    resolved_sidecar_path = sidecar_path or (
         target_path.with_name(f"{target_path.stem}.sidecar.json")
         if target_path.suffix == ".json"
         else target_path.with_suffix(".json")
     )
     if target_path.exists():
         raise FileExistsError(f"Refusing to overwrite immutable bronze file: {target_path}")
-    if sidecar_path.exists():
-        raise FileExistsError(f"Refusing to overwrite immutable bronze sidecar: {sidecar_path}")
+    if resolved_sidecar_path.exists():
+        raise FileExistsError(
+            f"Refusing to overwrite immutable bronze sidecar: {resolved_sidecar_path}"
+        )
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
     sha256_hex = hashlib.sha256(raw_bytes).hexdigest()
@@ -96,8 +100,8 @@ def write_immutable_with_sidecar(
     }
 
     target_path.write_bytes(raw_bytes)
-    sidecar_path.write_text(
+    resolved_sidecar_path.write_text(
         json.dumps(full_sidecar, indent=2, ensure_ascii=False),
         encoding="utf-8",
     )
-    return target_path, sidecar_path
+    return target_path, resolved_sidecar_path

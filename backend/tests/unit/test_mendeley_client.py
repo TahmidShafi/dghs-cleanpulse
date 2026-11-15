@@ -74,7 +74,9 @@ def test_ingest_mendeley_verifies_hashes_and_excludes_pdf(
     assert written[0].read_bytes() == payload
     assert not any("receipt" in u for u in requested_urls)
 
-    sidecar = json.loads((written[0].with_suffix(".json")).read_text(encoding="utf-8"))
+    sidecar = json.loads(
+        (written[0].with_name(f"{written[0].name}.sidecar.json")).read_text(encoding="utf-8")
+    )
     assert sidecar["doi"] == "10.17632/z5mvwrfgsz.1"
     assert sidecar["version"] == 1
     assert sidecar["licence"] == "CC BY 4.0"

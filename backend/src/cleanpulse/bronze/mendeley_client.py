@@ -195,6 +195,7 @@ def ingest_mendeley_dataset(
                 raw_bytes=raw_bytes,
                 target_path=target_path,
                 sidecar_metadata=sidecar_meta,
+                sidecar_path=target_path.with_name(f"{target_path.name}.sidecar.json"),
             )
             written_paths.append(raw_path)
             logger.info("Ingested Mendeley %s v%d: %s", spec.key, spec.version, raw_path)
