@@ -19,8 +19,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from cleanpulse.bronze.dghs_scraper import DGHSBronzeScraper
+from cleanpulse.bronze.mendeley_client import ingest_mendeley_dataset
 from cleanpulse.bronze.weather_client import OpenMeteoWeatherClient
+from cleanpulse.silver.dengue_secondary import (
+    build_dengue_division_daily,
+    build_dengue_division_monthly_b,
+    write_or_merge_audit_anomalies,
+)
 from cleanpulse.silver.firewall import SilverSanitizerFirewall
+from cleanpulse.silver.reconcile import run_reconciliation
 
 logger = logging.getLogger("cleanpulse.cli")
 
@@ -344,6 +351,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Execute complete live Medallion pipeline (fails loudly if DGHS fails)",
     )
 
+    # 7. ingest-mendeley
+    p_mendeley = subparsers.add_parser(
+        "ingest-mendeley",
+        help="Download and verify pinned Mendeley secondary datasets (A or B)",
+    )
+    p_mendeley.add_argument(
+        "--dataset",
+        choices=["A", "B", "all"],
+        required=True,
+        help="Which pinned Mendeley dataset to ingest",
+    )
+
+    # 8. build-secondary-silver
+    subparsers.add_parser(
+        "build-secondary-silver",
+        help="Build Silver dengue tables from Bronze Mendeley A and B",
+    )
+
+    # 9. reconcile-sources
+    subparsers.add_parser(
+        "reconcile-sources",
+        help="Reconcile Mendeley A/B against published DGHS totals and generate report",
+    )
+
     return parser
 
 
@@ -383,6 +414,47 @@ def main(argv: list[str] | None = None) -> int:
             all_results.extend(run_silver_pipeline(weather_only=False))
             all_results.extend(run_export_snapshot())
             all_results.append(run_export_report())
+        elif args.subcommand == "ingest-mendeley":
+            keys = ["A", "B"] if args.dataset == "all" else [args.dataset]
+            for key in keys:
+                t0 = time.perf_counter()
+                paths = ingest_mendeley_dataset(key)
+                all_results.append(
+                    StageResult(
+                        stage_name=f"Bronze Mendeley {key}",
+                        status="SUCCESS",
+                        metrics=f"{len(paths)} verified files",
+                        duration_sec=time.perf_counter() - t0,
+                        output_path=_rel_path(paths[0].parent),
+                    )
+                )
+        elif args.subcommand == "build-secondary-silver":
+            t0 = time.perf_counter()
+            daily_path, anom_a = build_dengue_division_daily()
+            monthly_path, anom_b = build_dengue_division_monthly_b()
+            audit_path = write_or_merge_audit_anomalies(anom_a + anom_b)
+            all_results.append(
+                StageResult(
+                    stage_name="Silver Secondary Dengue (A & B)",
+                    status="SUCCESS",
+                    metrics=f"{len(anom_a) + len(anom_b)} INFO/REPAIRED audit rows",
+                    duration_sec=time.perf_counter() - t0,
+                    output_path=_rel_path(daily_path.parent),
+                )
+            )
+            logger.info("Wrote %s, %s, %s", daily_path, monthly_path, audit_path)
+        elif args.subcommand == "reconcile-sources":
+            t0 = time.perf_counter()
+            outputs = run_reconciliation()
+            all_results.append(
+                StageResult(
+                    stage_name="Reconciliation Report",
+                    status="SUCCESS",
+                    metrics="3 parquet tables + markdown report",
+                    duration_sec=time.perf_counter() - t0,
+                    output_path=_rel_path(outputs.report_path),
+                )
+            )
         else:
             parser.print_help()
             return 1

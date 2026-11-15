@@ -160,6 +160,8 @@ AuditAnomalySilverSchema = pa.DataFrameSchema(
                     "INVALID_AGE_BUCKET",
                     "GENDER_SUM_MISMATCH",
                     "SCHEMA_VALIDATION_ERROR",
+                    "DIVISION_LABEL_NORMALIZED",
+                    "MERGED_CELL_FORWARD_FILL",
                 ]
             ),
             nullable=False,
