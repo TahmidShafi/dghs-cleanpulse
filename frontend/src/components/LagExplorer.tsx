@@ -22,28 +22,48 @@ const SCOPES_LIST = [
 const WEATHER_VARIABLES: Array<{
   key: "weekly_precip_mm" | "weekly_temp_c" | "weekly_humidity_pct";
   label: string;
+  statLabel: string;
   unit: string;
   shortLabel: string;
 }> = [
   {
     key: "weekly_precip_mm",
     label: "Weekly precipitation (mm)",
+    statLabel: "Mean weekly precip (mm)",
     unit: "mm",
     shortLabel: "Precip (mm)",
   },
   {
     key: "weekly_temp_c",
     label: "Weekly mean temperature (°C)",
+    statLabel: "Mean weekly temp (°C)",
     unit: "°C",
     shortLabel: "Temp (°C)",
   },
   {
     key: "weekly_humidity_pct",
     label: "Weekly relative humidity (%)",
+    statLabel: "Mean weekly humidity (%)",
     unit: "%",
     shortLabel: "Humidity (%)",
   },
 ];
+
+function niceCeiling(rawMax: number, intervals: number): number {
+  if (rawMax <= 0) return intervals;
+  const rawStep = rawMax / intervals;
+  const exp = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const frac = rawStep / exp;
+  const niceBases = [1, 2, 2.5, 5, 6, 8, 10];
+  const base = niceBases.find((b) => b >= frac) ?? 10;
+  return base * exp * intervals;
+}
+
+function addDaysIso(isoDate: string, days: number): string {
+  const dt = new Date(`${isoDate}T00:00:00Z`);
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
+}
 
 interface LagExplorerProps {
   currentScope: string;
@@ -124,23 +144,29 @@ export function LagExplorer({
 
   const maxCases = useMemo(() => {
     if (series.length === 0) return 100;
-    return Math.max(...series.map((s) => s.weekly_cases), 10);
+    const rawMax = Math.max(...series.map((s) => s.weekly_cases), 10);
+    return niceCeiling(rawMax, 4);
   }, [series]);
 
   const weatherBounds = useMemo(() => {
     if (series.length === 0) return { min: 0, max: 100 };
     if (varMeta.key === "weekly_precip_mm") {
       const m = Math.max(...series.map((s) => s.weekly_precip_mm), 10);
-      return { min: 0, max: m };
+      return { min: 0, max: niceCeiling(m, 4) };
     }
     if (varMeta.key === "weekly_humidity_pct") {
       return { min: 40, max: 100 };
     }
     const vals = series.map((s) => s.weekly_temp_c);
     const minV = Math.floor(Math.min(...vals, 10) / 5) * 5;
-    const maxV = Math.ceil(Math.max(...vals, 35) / 5) * 5;
-    return { min: minV, max: Math.max(maxV, minV + 5) };
+    const span = niceCeiling(Math.max(...vals, 35) - minV, 4);
+    return { min: minV, max: Math.max(minV + span, minV + 20) };
   }, [series, varMeta.key]);
+
+  const windowEnd = useMemo(() => {
+    if (series.length === 0) return "2024-12-29";
+    return addDaysIso(series[series.length - 1].week_start, 6);
+  }, [series]);
 
   const activeLag = hoveredLag ?? 0;
   const activeRaw = rawByLag.get(activeLag);
@@ -241,15 +267,20 @@ export function LagExplorer({
               {series.length}
             </span>
           </div>
-          <div className="px-3.5 py-2.5 rounded-lg bg-canvas border border-subtle">
-            <span className="text-xs text-secondary block">Cases</span>
+          <div
+            className="px-3.5 py-2.5 rounded-lg bg-canvas border border-subtle"
+            title="Excludes the cases on report dates in the 2 dropped partial ISO weeks"
+          >
+            <span className="text-xs text-secondary block">
+              Cases in {series.length} complete weeks
+            </span>
             <span className="text-base font-semibold font-mono tabular-nums text-primary">
               {totalCases.toLocaleString()}
             </span>
           </div>
           <div className="px-3.5 py-2.5 rounded-lg bg-canvas border border-subtle">
             <span className="text-xs text-secondary block">
-              Mean {varMeta.shortLabel}
+              {varMeta.statLabel}
             </span>
             <span className="text-base font-semibold font-mono tabular-nums text-accent-text">
               {meanWeatherVal}
@@ -269,15 +300,11 @@ export function LagExplorer({
             </h3>
             <p className="text-xs text-secondary mt-0.5">
               <span className="font-mono tabular-nums">{series.length}</span>{" "}
-              ISO weeks (
+              ISO weeks,{" "}
               <span className="font-mono tabular-nums">
                 {series[0]?.week_start ?? "2022-01-03"}
               </span>{" "}
-              to{" "}
-              <span className="font-mono tabular-nums">
-                {series[series.length - 1]?.week_start ?? "2024-12-23"}
-              </span>
-              )
+              to <span className="font-mono tabular-nums">{windowEnd}</span>
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4 text-xs text-secondary">
@@ -451,7 +478,7 @@ export function LagExplorer({
                       textAnchor="end"
                       className={`fill-secondary ${cfg.fontSizeClass} font-mono`}
                     >
-                      {series[series.length - 1].week_start}
+                      {windowEnd}
                     </text>
                   </>
                 )}
@@ -524,7 +551,7 @@ export function LagExplorer({
               raw ρ:{" "}
               <span className="text-accent-text">
                 {activeRaw?.rho !== null && activeRaw?.rho !== undefined
-                  ? activeRaw.rho.toFixed(3)
+                  ? activeRaw.rho.toFixed(2)
                   : activeRaw?.null_reason ?? "n/a"}
               </span>{" "}
               <span className="text-secondary">
@@ -535,7 +562,7 @@ export function LagExplorer({
               diff_log ρ:{" "}
               <span className="text-primary">
                 {activeDiff?.rho !== null && activeDiff?.rho !== undefined
-                  ? activeDiff.rho.toFixed(3)
+                  ? activeDiff.rho.toFixed(2)
                   : activeDiff?.null_reason ?? "n/a"}
               </span>{" "}
               <span className="text-secondary">
@@ -658,9 +685,20 @@ export function LagExplorer({
 
                 {lags.map((lag) => {
                   const x = xAt(lag);
-                  const rawRho = rawByLag.get(lag)?.rho;
-                  const diffRho = diffByLag.get(lag)?.rho;
+                  const rawEntry = rawByLag.get(lag);
+                  const diffEntry = diffByLag.get(lag);
+                  const rawRho = rawEntry?.rho;
+                  const diffRho = diffEntry?.rho;
                   const isSelected = activeLag === lag;
+                  const tooltipText = `Lag ${lag}w: raw ρ=${
+                    rawRho !== null && rawRho !== undefined
+                      ? rawRho.toFixed(2)
+                      : rawEntry?.null_reason ?? "n/a"
+                  } (n=${rawEntry?.n ?? 0}), diff_log ρ=${
+                    diffRho !== null && diffRho !== undefined
+                      ? diffRho.toFixed(2)
+                      : diffEntry?.null_reason ?? "n/a"
+                  } (n=${diffEntry?.n ?? 0})`;
                   return (
                     <g
                       key={lag}
@@ -668,8 +706,9 @@ export function LagExplorer({
                       onMouseEnter={() => setHoveredLag(lag)}
                       onFocus={() => setHoveredLag(lag)}
                       tabIndex={0}
-                      aria-label={`Lag ${lag} weeks`}
+                      aria-label={tooltipText}
                     >
+                      <title>{tooltipText}</title>
                       <rect
                         x={x - plotW / 18}
                         y={cfg.padTop}

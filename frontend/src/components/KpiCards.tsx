@@ -33,7 +33,9 @@ export function KpiCards({ summary, weather, health }: KpiCardsProps) {
     },
     {
       id: "kpi-historical-cases",
-      title: "Historical cases 2022-2024",
+      title: summary.historical
+        ? `Reported cases (report dates ${summary.historical.report_date_start} to ${summary.historical.report_date_end})`
+        : "Reported cases (report dates 2022-01-01 to 2024-12-31)",
       value: summary.historical
         ? summary.historical.total_cases.toLocaleString()
         : "—",
