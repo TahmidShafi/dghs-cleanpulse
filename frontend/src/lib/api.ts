@@ -12,10 +12,12 @@ import {
   AuditAnomaliesResponse,
   DashboardState,
   FallbackSnapshotData,
+  HistoricalWeeklyResponse,
   PipelineHealthResponse,
   SurveillanceSummaryResponse,
   SyntheticDemoData,
   WeatherDailyResponse,
+  WeeklyLagCorrelationsResponse,
 } from "./types";
 
 const API_BASE_URL =
@@ -76,20 +78,73 @@ export async function getSyntheticDemoData(): Promise<SyntheticDemoData | null> 
   }
 }
 
+function buildWeeklyLagsFromSnapshot(
+  snapshot: FallbackSnapshotData,
+  scope: string,
+  variable: string
+): WeeklyLagCorrelationsResponse | null {
+  const rows = (snapshot.lag_correlations_weekly || [])
+    .filter((r) => r.scope === scope && r.variable === variable)
+    .map(({ lag_weeks, transform, rho, n, null_reason }) => ({
+      lag_weeks,
+      transform,
+      rho,
+      n,
+      null_reason,
+    }));
+
+  if (rows.length === 0) {
+    return null;
+  }
+
+  const weeklyMeta = snapshot.historical_weekly_by_scope?.[scope];
+  return {
+    scope,
+    variable,
+    source_label:
+      weeklyMeta?.source_label ||
+      snapshot.surveillance_summary.historical?.source_label ||
+      "secondary source: transcribed from DGHS daily press releases (unverified transcription by third party)",
+    dataset_doi:
+      weeklyMeta?.dataset_doi ||
+      snapshot.surveillance_summary.historical?.dataset_doi ||
+      "10.17632/z5mvwrfgsz.1",
+    rows,
+  };
+}
+
 export async function fetchInitialDashboardData(): Promise<DashboardState> {
   const syntheticDemo = await getSyntheticDemoData();
 
   try {
-    const [summaryRes, weatherRes, anomaliesRes, healthRes] = await Promise.all([
+    const [
+      summaryRes,
+      weatherRes,
+      anomaliesRes,
+      healthRes,
+      histWeeklyRes,
+      weeklyLagsRes,
+    ] = await Promise.all([
       fetchWithTimeout(`${API_BASE_URL}/v1/surveillance/summary`),
       fetchWithTimeout(`${API_BASE_URL}/v1/weather/daily?zone=National`),
       fetchWithTimeout(
         `${API_BASE_URL}/v1/audit/anomalies?severity=ALL&anomaly_type=ALL`
       ),
       fetchWithTimeout(`${API_BASE_URL}/v1/health/pipeline`),
+      fetchWithTimeout(`${API_BASE_URL}/v1/historical/weekly?scope=National`),
+      fetchWithTimeout(
+        `${API_BASE_URL}/v1/analytics/lag-correlations?scope=National&variable=weekly_precip_mm`
+      ),
     ]);
 
-    if (!summaryRes.ok || !weatherRes.ok || !anomaliesRes.ok || !healthRes.ok) {
+    if (
+      !summaryRes.ok ||
+      !weatherRes.ok ||
+      !anomaliesRes.ok ||
+      !healthRes.ok ||
+      !histWeeklyRes.ok ||
+      !weeklyLagsRes.ok
+    ) {
       throw new Error("One or more backend endpoints returned non-200");
     }
 
@@ -97,10 +152,16 @@ export async function fetchInitialDashboardData(): Promise<DashboardState> {
     const weather: WeatherDailyResponse = await weatherRes.json();
     const anomalies: AuditAnomaliesResponse = await anomaliesRes.json();
     const health: PipelineHealthResponse = await healthRes.json();
+    const historicalWeekly: HistoricalWeeklyResponse =
+      await histWeeklyRes.json();
+    const weeklyLags: WeeklyLagCorrelationsResponse =
+      await weeklyLagsRes.json();
 
     return {
       summary,
       weather,
+      historicalWeekly,
+      weeklyLags,
       anomalies,
       health,
       syntheticDemo,
@@ -122,6 +183,13 @@ export async function fetchInitialDashboardData(): Promise<DashboardState> {
       weather:
         snapshot.weather_by_zone["National"] ||
         Object.values(snapshot.weather_by_zone)[0],
+      historicalWeekly:
+        snapshot.historical_weekly_by_scope?.["National"] ?? null,
+      weeklyLags: buildWeeklyLagsFromSnapshot(
+        snapshot,
+        "National",
+        "weekly_precip_mm"
+      ),
       anomalies: snapshot.audit_anomalies,
       health: snapshot.pipeline_health,
       syntheticDemo,
@@ -163,4 +231,45 @@ export async function fetchZoneWeatherData(
     snapshot.weather_by_zone["National"] ||
     Object.values(snapshot.weather_by_zone)[0]
   );
+}
+
+export async function fetchHistoricalScopeData(
+  scope: string,
+  variable: string,
+  isLive: boolean
+): Promise<{
+  weekly: HistoricalWeeklyResponse | null;
+  lags: WeeklyLagCorrelationsResponse | null;
+}> {
+  if (isLive) {
+    try {
+      const [weeklyRes, lagsRes] = await Promise.all([
+        fetchWithTimeout(
+          `${API_BASE_URL}/v1/historical/weekly?scope=${encodeURIComponent(scope)}`
+        ),
+        fetchWithTimeout(
+          `${API_BASE_URL}/v1/analytics/lag-correlations?scope=${encodeURIComponent(
+            scope
+          )}&variable=${encodeURIComponent(variable)}`
+        ),
+      ]);
+      if (weeklyRes.ok && lagsRes.ok) {
+        return {
+          weekly: (await weeklyRes.json()) as HistoricalWeeklyResponse,
+          lags: (await lagsRes.json()) as WeeklyLagCorrelationsResponse,
+        };
+      }
+    } catch (err) {
+      console.warn(
+        "Live historical query failed, falling back to static snapshot:",
+        err
+      );
+    }
+  }
+
+  const snapshot = await getFallbackSnapshot();
+  return {
+    weekly: snapshot.historical_weekly_by_scope?.[scope] ?? null,
+    lags: buildWeeklyLagsFromSnapshot(snapshot, scope, variable),
+  };
 }

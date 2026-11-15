@@ -36,12 +36,60 @@ export interface SurveillanceSummaryData {
   age_groups: AgeCohortItem[];
 }
 
+export interface HistoricalSummaryBlock {
+  window: string;
+  report_date_start: string;
+  report_date_end: string;
+  total_cases: number;
+  source_label: string;
+  dataset_doi: string;
+}
+
 export interface SurveillanceSummaryResponse {
   status: "available" | "pending_real_source";
   reason: string | null;
   message: string;
   weather_available: boolean;
   data: SurveillanceSummaryData | null;
+  historical?: HistoricalSummaryBlock | null;
+}
+
+export interface HistoricalWeeklyPoint {
+  week_start: string;
+  iso_week: string;
+  weekly_cases: number;
+  weekly_precip_mm: number;
+  weekly_temp_c: number;
+  weekly_humidity_pct: number;
+}
+
+export interface HistoricalWeeklyResponse {
+  scope: string;
+  source_label: string;
+  dataset_doi: string;
+  window: string;
+  series: HistoricalWeeklyPoint[];
+}
+
+export interface WeeklyLagRow {
+  lag_weeks: number;
+  transform: string;
+  rho: number | null;
+  n: number;
+  null_reason: string | null;
+}
+
+export interface WeeklyLagCorrelationsResponse {
+  scope: string;
+  variable: string;
+  source_label: string;
+  dataset_doi: string;
+  rows: WeeklyLagRow[];
+}
+
+export interface SnapshotWeeklyLagRow extends WeeklyLagRow {
+  scope: string;
+  variable: string;
 }
 
 export interface WeatherDailyPoint {
@@ -117,6 +165,8 @@ export interface FallbackSnapshotData {
   };
   surveillance_summary: SurveillanceSummaryResponse;
   weather_by_zone: Record<string, WeatherDailyResponse>;
+  historical_weekly_by_scope?: Record<string, HistoricalWeeklyResponse>;
+  lag_correlations_weekly?: SnapshotWeeklyLagRow[];
   audit_anomalies: AuditAnomaliesResponse;
   pipeline_health: PipelineHealthResponse;
 }
@@ -124,6 +174,8 @@ export interface FallbackSnapshotData {
 export interface DashboardState {
   summary: SurveillanceSummaryResponse;
   weather: WeatherDailyResponse;
+  historicalWeekly: HistoricalWeeklyResponse | null;
+  weeklyLags: WeeklyLagCorrelationsResponse | null;
   anomalies: AuditAnomaliesResponse;
   health: PipelineHealthResponse;
   syntheticDemo: SyntheticDemoData | null;

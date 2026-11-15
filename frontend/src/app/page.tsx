@@ -6,20 +6,30 @@ import { KpiCards } from "@/components/KpiCards";
 import { FirewallInspector } from "@/components/FirewallInspector";
 import { LagExplorer } from "@/components/LagExplorer";
 import {
+  fetchHistoricalScopeData,
   fetchInitialDashboardData,
-  fetchZoneWeatherData,
 } from "@/lib/api";
-import { DashboardState, WeatherDailyResponse } from "@/lib/types";
+import {
+  DashboardState,
+  HistoricalWeeklyResponse,
+  WeeklyLagCorrelationsResponse,
+} from "@/lib/types";
 import { CloudRain, ShieldCheck } from "lucide-react";
 
 export default function Home() {
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
   const [activeTab, setActiveTab] = useState<"firewall" | "lags">("firewall");
-  const [currentZone, setCurrentZone] = useState<string>("National");
-  const [weatherData, setWeatherData] = useState<WeatherDailyResponse | null>(null);
+  const [currentScope, setCurrentScope] = useState<string>("National");
+  const [currentVariable, setCurrentVariable] =
+    useState<string>("weekly_precip_mm");
+  const [historicalWeekly, setHistoricalWeekly] =
+    useState<HistoricalWeeklyResponse | null>(null);
+  const [weeklyLags, setWeeklyLags] =
+    useState<WeeklyLagCorrelationsResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
-  const [isWeatherLoading, setIsWeatherLoading] = useState<boolean>(false);
+  const [isHistoricalLoading, setIsHistoricalLoading] =
+    useState<boolean>(false);
 
   const loadData = async (refresh = false) => {
     if (refresh) setIsRefreshing(true);
@@ -27,7 +37,8 @@ export default function Home() {
     try {
       const state = await fetchInitialDashboardData();
       setDashboard(state);
-      setWeatherData(state.weather);
+      setHistoricalWeekly(state.historicalWeekly);
+      setWeeklyLags(state.weeklyLags);
     } catch (e) {
       console.error("Dashboard failed to initialize:", e);
     } finally {
@@ -48,7 +59,8 @@ export default function Home() {
       .then((state) => {
         if (isMounted) {
           setDashboard(state);
-          setWeatherData(state.weather);
+          setHistoricalWeekly(state.historicalWeekly);
+          setWeeklyLags(state.weeklyLags);
           setIsLoading(false);
         }
       })
@@ -62,18 +74,32 @@ export default function Home() {
     };
   }, []);
 
-  const handleZoneChange = async (newZone: string) => {
-    setCurrentZone(newZone);
+  const updateHistoricalView = async (scope: string, variable: string) => {
     if (!dashboard) return;
-    setIsWeatherLoading(true);
+    setIsHistoricalLoading(true);
     try {
-      const data = await fetchZoneWeatherData(newZone, dashboard.isLive);
-      setWeatherData(data);
+      const { weekly, lags } = await fetchHistoricalScopeData(
+        scope,
+        variable,
+        dashboard.isLive
+      );
+      setHistoricalWeekly(weekly);
+      setWeeklyLags(lags);
     } catch (e) {
-      console.error("Failed to load zone weather data:", e);
+      console.error("Failed to load historical scope data:", e);
     } finally {
-      setIsWeatherLoading(false);
+      setIsHistoricalLoading(false);
     }
+  };
+
+  const handleScopeChange = (newScope: string) => {
+    setCurrentScope(newScope);
+    void updateHistoricalView(newScope, currentVariable);
+  };
+
+  const handleVariableChange = (newVariable: string) => {
+    setCurrentVariable(newVariable);
+    void updateHistoricalView(currentScope, newVariable);
   };
 
   if (isLoading || !dashboard) {
@@ -164,7 +190,7 @@ export default function Home() {
             }`}
           >
             <CloudRain className="w-4 h-4 shrink-0" />
-            <span>Weather explorer</span>
+            <span>Historical analysis</span>
           </button>
         </div>
 
@@ -178,13 +204,16 @@ export default function Home() {
           </div>
         )}
 
-        {activeTab === "lags" && weatherData && (
+        {activeTab === "lags" && (
           <div id="content-tab-lags" className="animate-fade-in">
             <LagExplorer
-              currentZone={currentZone}
-              weatherData={weatherData}
-              onZoneChange={handleZoneChange}
-              isLoading={isWeatherLoading}
+              currentScope={currentScope}
+              currentVariable={currentVariable}
+              historicalWeekly={historicalWeekly}
+              weeklyLags={weeklyLags}
+              onScopeChange={handleScopeChange}
+              onVariableChange={handleVariableChange}
+              isLoading={isHistoricalLoading}
             />
           </div>
         )}

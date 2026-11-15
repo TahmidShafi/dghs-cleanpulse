@@ -20,7 +20,7 @@ export function KpiCards({ summary, weather, health }: KpiCardsProps) {
   const cards = [
     {
       id: "kpi-dengue-status",
-      title: "DGHS dengue series",
+      title: "Live DGHS feed",
       value:
         hasRealDengue && summary.data
           ? summary.data.total_admitted.toLocaleString()
@@ -32,19 +32,21 @@ export function KpiCards({ summary, weather, health }: KpiCardsProps) {
       badge: hasRealDengue ? "Live" : "Pending",
     },
     {
-      id: "kpi-weather-coverage",
-      title: "Weather coverage",
-      value: `${weather.district_count} districts`,
-      subtext: `${health.layer_counts.silver_weather_rows.toLocaleString()} Open-Meteo ERA5 rows (${weather.start_date} to ${weather.end_date})`,
-      icon: CloudRain,
+      id: "kpi-historical-cases",
+      title: "Historical cases 2022-2024",
+      value: summary.historical
+        ? summary.historical.total_cases.toLocaleString()
+        : "—",
+      subtext: "secondary source",
+      icon: AlertTriangle,
       badge: null,
     },
     {
-      id: "kpi-real-anomalies",
-      title: "DGHS anomalies",
-      value: `${health.layer_counts.silver_anomaly_rows}`,
-      subtext: "Validation demo tab uses synthetic test input only",
-      icon: AlertTriangle,
+      id: "kpi-weather-coverage",
+      title: "Weather coverage",
+      value: `${weather.district_count} districts`,
+      subtext: "2022-2024 ERA5",
+      icon: CloudRain,
       badge: null,
     },
     {
