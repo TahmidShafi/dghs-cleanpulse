@@ -115,7 +115,13 @@ def _extract_file_entry(files_payload: list[dict[str, Any]], filename: str) -> t
             continue
         content_details = entry.get("content_details") or {}
         download_url = str(content_details.get("download_url") or entry.get("download_url") or "")
-        mendeley_sha256 = str(content_details.get("sha256") or entry.get("sha256") or "").lower()
+        mendeley_sha256 = str(
+            content_details.get("sha256_hash")
+            or content_details.get("sha256")
+            or entry.get("sha256_hash")
+            or entry.get("sha256")
+            or ""
+        ).lower()
         if not download_url or not mendeley_sha256:
             raise MendeleyIngestionError(
                 f"Missing download_url or sha256 in Mendeley metadata for {filename}"
