@@ -139,7 +139,7 @@ def ingest_mendeley_dataset(
 
     spec = PINNED_DATASETS[dataset_key]
     target_dir = (bronze_root or DEFAULT_BRONZE_MENDELEY_DIR) / spec.key / f"v{spec.version}"
-    meta_url = f"{MENDELEY_API_BASE}/{spec.dataset_id}?version={spec.version}"
+    meta_url = f"{MENDELEY_API_BASE}/{spec.dataset_id}/files?folder_id=root&version={spec.version}"
 
     owns_client = client is None
     http = client or httpx.Client(timeout=60.0, follow_redirects=True)
@@ -149,7 +149,7 @@ def ingest_mendeley_dataset(
         meta_resp = http.get(meta_url)
         meta_resp.raise_for_status()
         meta_json = meta_resp.json()
-        files_payload = meta_json.get("files")
+        files_payload = meta_json.get("files") if isinstance(meta_json, dict) else meta_json
         if not isinstance(files_payload, list):
             raise MendeleyIngestionError(f"Unexpected Mendeley metadata format at {meta_url}")
 
