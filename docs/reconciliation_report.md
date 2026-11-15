@@ -3,22 +3,20 @@
 
 ## 1. Dataset A Annual Totals vs Published DGHS Reference
 
-|   year |   a_cases |   ref_cases | scope_note          | source_outlet         | verified_on_page   |   abs_diff |   pct_diff |
-|-------:|----------:|------------:|:--------------------|:----------------------|:-------------------|-----------:|-----------:|
-|   2022 |     62124 |       62382 | Jan 1-Dec 31 2022   | Daily New Nation      | True               |       -258 |    -0.4136 |
-|   2022 |     62124 |       62423 | Includes 1 Jan 2023 | UNB                   | False              |       -299 |    -0.479  |
-|   2023 |    321209 |      321179 | Full year 2023      | The Financial Express | True               |         30 |     0.0093 |
-|   2024 |    101375 |      101214 | Full year 2024      | Central Chronicle     | False              |        161 |     0.1591 |
+|   year |   a_cases |   ref_cases | scope_note        | source_outlet         | verified_on_page   |   abs_diff |   pct_diff_percent |
+|-------:|----------:|------------:|:------------------|:----------------------|:-------------------|-----------:|-------------------:|
+|   2022 |     62124 |       62382 | Jan 1-Dec 31 2022 | Daily New Nation      | True               |       -258 |            -0.4136 |
+|   2023 |    321209 |      321179 | Full year 2023    | The Financial Express | True               |         30 |             0.0093 |
+|   2024 |    101375 |      101214 | Full year 2024    | BSS News              | True               |        161 |             0.1591 |
 
 ## 2. Dataset B Annual Totals vs Published DGHS Reference (Reconciliation Only)
 
-|   year |   b_infected |   b_death |   ref_cases |   ref_deaths | scope_note          | source_outlet         | verified_on_page   |   cases_diff |   deaths_diff |
-|-------:|-------------:|----------:|------------:|-------------:|:--------------------|:----------------------|:-------------------|-------------:|--------------:|
-|   2022 |        65081 |       282 |       62382 |          281 | Jan 1-Dec 31 2022   | Daily New Nation      | True               |         2699 |             1 |
-|   2022 |        65081 |       282 |       62423 |          nan | Includes 1 Jan 2023 | UNB                   | False              |         2658 |           nan |
-|   2023 |       323971 |      1697 |      321179 |         1705 | Full year 2023      | The Financial Express | True               |         2792 |            -8 |
-|   2024 |       101252 |       575 |      101214 |          575 | Full year 2024      | Central Chronicle     | False              |           38 |             0 |
-|   2025 |       101171 |       439 |      102861 |          413 | Full year 2025      | BSS News              | True               |        -1690 |            26 |
+|   year |   b_infected |   b_death |   ref_cases |   ref_deaths | scope_note        | source_outlet         | verified_on_page   |   cases_diff |   deaths_diff |
+|-------:|-------------:|----------:|------------:|-------------:|:------------------|:----------------------|:-------------------|-------------:|--------------:|
+|   2022 |        65081 |       282 |       62382 |          281 | Jan 1-Dec 31 2022 | Daily New Nation      | True               |         2699 |             1 |
+|   2023 |       323971 |      1697 |      321179 |         1705 | Full year 2023    | The Financial Express | True               |         2792 |            -8 |
+|   2024 |       101252 |       575 |      101214 |          575 | Full year 2024    | BSS News              | True               |           38 |             0 |
+|   2025 |       101171 |       439 |      102861 |          413 | Full year 2025    | BSS News              | True               |        -1690 |            26 |
 
 ## 3. Dataset A (Monthly Sum) vs Dataset B by Division-Month (2022–2024)
 
