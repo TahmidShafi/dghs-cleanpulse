@@ -35,12 +35,12 @@ class AgeCohortItem(BaseModel):
     reconciled_total: int = Field(..., ge=0)
     arithmetic_delta: int = Field(
         ...,
-        description="Discrepancy (reported - reconciled). Row 21-25 is +10; clean is 0.",
+        description="Discrepancy (reported - reconciled).",
     )
     deaths: int = Field(..., ge=0)
 
 
-class SurveillanceSummaryResponse(BaseModel):
+class SurveillanceSummaryData(BaseModel):
     """National and zone-level surveillance executive summary KPIs."""
 
     model_config = ConfigDict(frozen=True)
@@ -57,8 +57,20 @@ class SurveillanceSummaryResponse(BaseModel):
         le=28,
         description="Lag offset (days) with highest national climate-case correlation",
     )
-    zones_summary: list[ZoneSummaryItem] = Field(..., description="Breakdown across 10 DGHS zones")
-    age_groups: list[AgeCohortItem] = Field(..., description="17 sanitized age group cohorts")
+    zones_summary: list[ZoneSummaryItem] = Field(..., description="Breakdown across DGHS zones")
+    age_groups: list[AgeCohortItem] = Field(..., description="Sanitized age group cohorts")
+
+
+class SurveillanceSummaryResponse(BaseModel):
+    """Typed envelope for GET /v1/surveillance/summary."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str = Field(..., description="'available' or 'pending_real_source'")
+    reason: str | None = Field(None, description="Machine-readable reason when pending")
+    message: str = Field(..., description="Human-readable status message")
+    weather_available: bool = Field(..., description="Whether real weather data is available")
+    data: SurveillanceSummaryData | None = Field(None)
 
 
 # ---------------------------------------------------------------------------
@@ -90,8 +102,8 @@ class AlignedTimeSeriesItem(BaseModel):
     lagged_temp_c: float | None = Field(None, ge=-5.0, le=55.0)
 
 
-class SurveillanceLagsResponse(BaseModel):
-    """Spatiotemporal lag correlation response with aligned time series."""
+class SurveillanceLagsData(BaseModel):
+    """Spatiotemporal lag correlation payload with aligned time series."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -99,18 +111,51 @@ class SurveillanceLagsResponse(BaseModel):
     selected_lag_days: int = Field(..., ge=0, le=28)
     peak_lag_days: int = Field(..., ge=0, le=28)
     peak_correlation_r: float = Field(..., ge=-1.0, le=1.0)
-    lag_correlations: list[LagCorrelationItem] = Field(
-        ...,
-        description="29 correlation points for lag offsets 0..28",
-    )
-    aligned_time_series: list[AlignedTimeSeriesItem] = Field(
-        ...,
-        description="180-day time series with climate indicators shifted by selected_lag_days",
-    )
+    lag_correlations: list[LagCorrelationItem]
+    aligned_time_series: list[AlignedTimeSeriesItem]
+
+
+class SurveillanceLagsResponse(BaseModel):
+    """Typed envelope for GET /v1/surveillance/lags."""
+
+    model_config = ConfigDict(frozen=True)
+
+    status: str = Field(..., description="'available' or 'pending_real_source'")
+    reason: str | None = Field(None, description="Machine-readable reason when pending")
+    message: str = Field(..., description="Human-readable status message")
+    weather_available: bool = Field(..., description="Whether real weather data is available")
+    data: SurveillanceLagsData | None = Field(None)
 
 
 # ---------------------------------------------------------------------------
-# 3. Audit Anomaly Models
+# 3. Real Weather Daily Series Models
+# ---------------------------------------------------------------------------
+class WeatherDailyPoint(BaseModel):
+    """Daily aggregated Open-Meteo weather record."""
+
+    model_config = ConfigDict(frozen=True)
+
+    date: str
+    precip_mm: float = Field(..., ge=0.0)
+    humidity_pct: float = Field(..., ge=0.0, le=100.0)
+    temp_c: float = Field(..., ge=-5.0, le=55.0)
+
+
+class WeatherDailyResponse(BaseModel):
+    """Real Open-Meteo weather time series for National or a DGHS zone."""
+
+    model_config = ConfigDict(frozen=True)
+
+    zone_name: str
+    source: str
+    start_date: str
+    end_date: str
+    district_count: int = Field(..., ge=0)
+    series: list[WeatherDailyPoint]
+
+
+# ---------------------------------------------------------------------------
+# 4. Audit Anomaly Models
 # ---------------------------------------------------------------------------
 class AnomalyItem(BaseModel):
     """Structured record of an upstream data anomaly flagged by Silver firewall."""
@@ -129,7 +174,7 @@ class AnomalyItem(BaseModel):
 
 
 class AuditAnomaliesResponse(BaseModel):
-    """Audit anomaly response containing logs and frequency aggregates."""
+    """Audit anomaly response containing real Silver logs and frequency aggregates."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -140,7 +185,7 @@ class AuditAnomaliesResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# 4. Pipeline Health Models
+# 5. Pipeline Health Models
 # ---------------------------------------------------------------------------
 class PipelineLayerCounts(BaseModel):
     """Row counts across Medallion architecture layers."""
@@ -156,12 +201,12 @@ class PipelineLayerCounts(BaseModel):
 
 
 class PipelineHealthResponse(BaseModel):
-    """System and pipeline diagnostic health check response."""
+    """Operational telemetry and DuckDB query latency response."""
 
     model_config = ConfigDict(frozen=True)
 
-    status: str = Field(..., description="'healthy' or 'degraded'")
-    timestamp: str = Field(..., description="Current UTC timestamp")
+    status: str
+    timestamp: str
     layer_counts: PipelineLayerCounts
-    schemas_validated: bool = Field(..., description="True if all schemas pass validation")
-    duckdb_latency_ms: float = Field(..., ge=0.0, description="Live DuckDB query latency (ms)")
+    schemas_validated: bool
+    duckdb_latency_ms: float = Field(..., ge=0.0)

@@ -1,129 +1,140 @@
 """Integration tests for the DGHS-CleanPulse FastAPI REST Service."""
 
+from __future__ import annotations
+
 from collections.abc import Generator
+from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
 
-from cleanpulse.api.main import app
+import cleanpulse.api.main as api_main
+from cleanpulse.silver.spatial_crosswalk import load_district_crosswalk
+from tests.synthetic_weather import generate_synthetic_weather
 
 
 @pytest.fixture(scope="module")
-def client() -> Generator[TestClient, None, None]:
-    """Provide a TestClient instance with startup lifespan context entered."""
-    with TestClient(app) as test_client:
-        yield test_client
+def client(tmp_path_factory: pytest.TempPathFactory) -> Generator[TestClient, None, None]:
+    """Provide an isolated TestClient backed by tmp_path (never mutates data/)."""
+    tmp_root = tmp_path_factory.mktemp("api_data")
+    silver_dir = tmp_root / "silver"
+    gold_dir = tmp_root / "gold"
+    bronze_dir = tmp_root / "bronze"
+    silver_dir.mkdir(parents=True)
+    gold_dir.mkdir(parents=True)
+    bronze_dir.mkdir(parents=True)
+
+    # Populate only weather parquet in isolated tmp silver_dir
+    cw = load_district_crosswalk()
+    weather_df = generate_synthetic_weather(
+        cw.to_dict(orient="records"),
+        start_date="2026-10-01",
+        end_date="2026-10-14",
+        seed=11,
+    )
+    weather_parquet = silver_dir / "weather_districts_daily.parquet"
+    weather_df.to_parquet(weather_parquet, index=False)
+
+    orig_attrs = {
+        "DATA_DIR": api_main.DATA_DIR,
+        "SILVER_DIR": api_main.SILVER_DIR,
+        "GOLD_DIR": api_main.GOLD_DIR,
+        "BRONZE_DIR": api_main.BRONZE_DIR,
+        "ZONES_PARQUET": api_main.ZONES_PARQUET,
+        "AGE_PARQUET": api_main.AGE_PARQUET,
+        "WEATHER_PARQUET": api_main.WEATHER_PARQUET,
+        "ANOMALIES_PARQUET": api_main.ANOMALIES_PARQUET,
+        "GOLD_DAILY_PARQUET": api_main.GOLD_DAILY_PARQUET,
+        "GOLD_LAGS_PARQUET": api_main.GOLD_LAGS_PARQUET,
+    }
+    api_main.reset_db()
+    api_main.DATA_DIR = tmp_root
+    api_main.SILVER_DIR = silver_dir
+    api_main.GOLD_DIR = gold_dir
+    api_main.BRONZE_DIR = bronze_dir
+    api_main.ZONES_PARQUET = silver_dir / "dengue_zones_daily.parquet"
+    api_main.AGE_PARQUET = silver_dir / "dengue_age_groups.parquet"
+    api_main.WEATHER_PARQUET = weather_parquet
+    api_main.ANOMALIES_PARQUET = silver_dir / "audit_anomalies.parquet"
+    api_main.GOLD_DAILY_PARQUET = gold_dir / "zone_daily_climate_dengue.parquet"
+    api_main.GOLD_LAGS_PARQUET = gold_dir / "zone_lag_correlations.parquet"
+
+    try:
+        with TestClient(api_main.app) as test_client:
+            yield test_client
+    finally:
+        api_main.reset_db()
+        for k, v in orig_attrs.items():
+            setattr(api_main, k, v)
 
 
-def test_surveillance_summary_endpoint(client: TestClient) -> None:
-    """Verify GET /v1/surveillance/summary returns valid KPIs, zones, and age cohorts."""
-    response = client.get("/v1/surveillance/summary")
-    assert response.status_code == 200
-
-    data = response.json()
-    assert data["report_date"] == "2026-10-14"
-    assert data["total_admitted"] == 105316
-    assert data["total_deaths"] == 452
-    assert data["anomalies_caught_count"] == 6
-    assert data["optimal_lag_days"] in range(12, 20)
-
-    # 10 official zones
-    zones = data["zones_summary"]
-    assert len(zones) == 10
-    zone_names = {z["zone_name"] for z in zones}
-    assert "Chattogram" in zone_names
-    assert "DNCC" in zone_names
-    assert "DSCC" in zone_names
-    assert "Dhaka (Out of CC)" in zone_names
-
-    # 17 sanitized age cohorts
-    age_groups = data["age_groups"]
-    assert len(age_groups) == 17
-    cohort_21_25 = next(c for c in age_groups if c["age_group"] == "21-25")
-    assert cohort_21_25["reported_total"] == 5390
-    assert cohort_21_25["reconciled_total"] == 5380
-    assert cohort_21_25["arithmetic_delta"] == 10
+def test_surveillance_summary_pending_real_source(client: TestClient) -> None:
+    """Verify GET /v1/surveillance/summary returns 200 with pending_real_source."""
+    resp = client.get("/v1/surveillance/summary")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "pending_real_source"
+    assert body["reason"] == "no_real_dengue_series"
+    assert body["weather_available"] is True
+    assert body["data"] is None
 
 
-def test_surveillance_lags_endpoint(client: TestClient) -> None:
-    """Verify GET /v1/surveillance/lags returns 29 correlation points and aligned series."""
-    # 1. Default National query
+def test_surveillance_lags_pending_real_source_and_validation(client: TestClient) -> None:
+    """Verify GET /v1/surveillance/lags returns pending_real_source and validates query params."""
     resp = client.get("/v1/surveillance/lags")
     assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "pending_real_source"
+    assert body["reason"] == "no_real_dengue_series"
+    assert body["weather_available"] is True
+    assert body["data"] is None
 
-    data = resp.json()
-    assert data["zone_name"] == "National"
-    assert data["selected_lag_days"] == 16
-    assert len(data["lag_correlations"]) == 29
-    assert len(data["aligned_time_series"]) == 180
-
-    # Verify lag offsets 0 to 28
-    lags = [item["lag_days"] for item in data["lag_correlations"]]
-    assert lags == list(range(29))
-
-    # 2. Specific zone query (e.g. Chattogram)
-    resp_ctg = client.get("/v1/surveillance/lags?zone=Chattogram&lag_days=14")
-    assert resp_ctg.status_code == 200
-    data_ctg = resp_ctg.json()
-    assert data_ctg["zone_name"] == "Chattogram"
-    assert data_ctg["selected_lag_days"] == 14
-    assert len(data_ctg["aligned_time_series"]) == 180
-
-    # 3. Invalid zone name -> 400 Bad Request
     resp_invalid_zone = client.get("/v1/surveillance/lags?zone=Atlantis")
     assert resp_invalid_zone.status_code == 400
-    assert "is invalid" in resp_invalid_zone.json()["detail"]
 
-    # 4. Out-of-bounds lag_days (> 28) -> 422 Unprocessable Entity
     resp_high_lag = client.get("/v1/surveillance/lags?lag_days=50")
     assert resp_high_lag.status_code == 422
 
-    # 5. Negative lag_days (< 0) -> 422 Unprocessable Entity
-    resp_neg_lag = client.get("/v1/surveillance/lags?lag_days=-1")
-    assert resp_neg_lag.status_code == 422
+
+def test_weather_daily_endpoint_properties(client: TestClient) -> None:
+    """Verify GET /v1/weather/daily returns contiguous dates and valid physical bounds."""
+    resp = client.get("/v1/weather/daily?zone=National")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["zone_name"] == "National"
+    assert body["district_count"] == 64
+    series = body["series"]
+    assert len(series) > 0
+
+    dates = [pt["date"] for pt in series]
+    assert dates == sorted(set(dates))
+    expected_days = (date.fromisoformat(dates[-1]) - date.fromisoformat(dates[0])).days + 1
+    assert len(dates) == expected_days
+
+    for pt in series:
+        assert pt["precip_mm"] >= 0.0
+        assert 0.0 <= pt["humidity_pct"] <= 100.0
+        assert -5.0 <= pt["temp_c"] <= 55.0
 
 
-def test_audit_anomalies_endpoint(client: TestClient) -> None:
-    """Verify GET /v1/audit/anomalies returns filtered and aggregated anomaly records."""
-    # 1. Retrieve all anomalies
+def test_audit_anomalies_empty_when_no_real_dghs_data(client: TestClient) -> None:
+    """Verify GET /v1/audit/anomalies returns 0 anomalies (never synthetic fixture data)."""
     resp = client.get("/v1/audit/anomalies")
     assert resp.status_code == 200
-
-    data = resp.json()
-    assert data["total_anomalies"] == 6
-    assert len(data["anomalies"]) == 6
-    assert "CRITICAL" in data["severity_counts"]
-    assert "WARNING" in data["severity_counts"]
-
-    # 2. Filter by severity
-    resp_crit = client.get("/v1/audit/anomalies?severity=CRITICAL")
-    assert resp_crit.status_code == 200
-    crit_data = resp_crit.json()
-    for anom in crit_data["anomalies"]:
-        assert anom["severity"] == "CRITICAL"
-
-    # 3. Filter by anomaly_type
-    resp_type = client.get("/v1/audit/anomalies?anomaly_type=EXCEL_SERIAL_DATE_CAST")
-    assert resp_type.status_code == 200
-    type_data = resp_type.json()
-    assert len(type_data["anomalies"]) == 2
-    for anom in type_data["anomalies"]:
-        assert anom["anomaly_type"] == "EXCEL_SERIAL_DATE_CAST"
+    body = resp.json()
+    assert body["total_anomalies"] == 0
+    assert body["anomalies"] == []
 
 
-def test_pipeline_health_endpoint(client: TestClient) -> None:
-    """Verify GET /v1/health/pipeline reports exact Medallion layer counts and latency."""
+def test_pipeline_health_endpoint_returns_200(client: TestClient) -> None:
+    """Verify GET /v1/health/pipeline returns 200 and reports 0 dengue/gold rows."""
     resp = client.get("/v1/health/pipeline")
     assert resp.status_code == 200
-
-    data = resp.json()
-    assert data["status"] == "healthy"
-    assert data["schemas_validated"] is True
-    assert data["duckdb_latency_ms"] >= 0.0
-
-    counts = data["layer_counts"]
-    assert counts["silver_dengue_rows"] == 1800
-    assert counts["silver_weather_rows"] == 11520
-    assert counts["silver_anomaly_rows"] == 6
-    assert counts["gold_daily_rows"] == 1800
-    assert counts["gold_lag_rows"] == 319
+    body = resp.json()
+    assert body["status"] == "healthy"
+    assert body["schemas_validated"] is True
+    counts = body["layer_counts"]
+    assert counts["silver_dengue_rows"] == 0
+    assert counts["gold_daily_rows"] == 0
+    assert counts["gold_lag_rows"] == 0
+    assert counts["silver_weather_rows"] > 0

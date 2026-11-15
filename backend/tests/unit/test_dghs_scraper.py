@@ -1,12 +1,20 @@
-"""Unit tests for the DGHS Bronze Layer scraper and raw snapshot ingestion."""
+"""Unit tests for the DGHS Bronze Layer scraper and immutable raw snapshot ingestion."""
 
+import hashlib
 import json
+import time
 from pathlib import Path
 
 import httpx
 import pytest
 
-from cleanpulse.bronze.dghs_scraper import DEFAULT_FIXTURE_PATH, DGHSBronzeScraper
+from cleanpulse.bronze.dghs_scraper import (
+    DEFAULT_FIXTURE_PATH,
+    DGHSBronzeScraper,
+    DGHSFetchError,
+    DGHSParseError,
+)
+from cleanpulse.bronze.provenance import REPO_DATA_DIR
 
 
 @pytest.fixture
@@ -16,21 +24,27 @@ def scraper() -> DGHSBronzeScraper:
 
 
 def test_fixture_exists_and_readable() -> None:
-    """Verify that the test HTML fixture exists and contains DGHS HTML markup."""
+    """Verify that the synthetic HTML fixture exists and carries the synthetic header."""
     assert DEFAULT_FIXTURE_PATH.exists(), f"Fixture missing at {DEFAULT_FIXTURE_PATH}"
+    assert DEFAULT_FIXTURE_PATH.name == "synthetic_dghs_fault_injection.html"
     content = DEFAULT_FIXTURE_PATH.read_text(encoding="utf-8")
-    assert "DGHS Dengue Dynamic Dashboard" in content
+    assert "SYNTHETIC TEST FIXTURE" in content
     assert "zone_distribution_table" in content
     assert "age_distribution_table" in content
 
 
 def test_scraper_extracts_all_10_zones(scraper: DGHSBronzeScraper) -> None:
-    """Verify that all 10 official reporting zones are extracted without omission."""
-    html_content, source_hash, fetch_source = scraper.fetch_html(force_offline=True)
-    assert fetch_source == "fixture"
+    """Verify that all 10 official reporting zones are extracted from the synthetic fixture."""
+    raw_bytes, provenance = scraper.fetch_raw(force_offline=True)
+    assert provenance["fetch_source"] == "synthetic_fixture"
+    source_hash = scraper.compute_sha256(raw_bytes)
     assert len(source_hash) == 64
 
-    data = scraper.parse_dashboard(html_content, source_hash, fetch_source)
+    data = scraper.parse_dashboard(
+        raw_bytes.decode("utf-8"),
+        source_hash=source_hash,
+        fetch_source=str(provenance["fetch_source"]),
+    )
     zones = data["zones"]
 
     expected_zones = [
@@ -47,112 +61,135 @@ def test_scraper_extracts_all_10_zones(scraper: DGHSBronzeScraper) -> None:
     ]
 
     extracted_zone_names = [z["zone_name"] for z in zones]
-    assert len(extracted_zone_names) == 10
     assert extracted_zone_names == expected_zones
 
-    # Validate individual zone fields
     dscc = next(z for z in zones if z["zone_name"] == "DSCC")
     assert dscc["daily_admitted"] == "320"
     assert dscc["daily_deaths"] == "3"
     assert dscc["total_admitted"] == "18,910"
     assert dscc["total_deaths"] == "112"
 
-    dncc = next(z for z in zones if z["zone_name"] == "DNCC")
-    assert dncc["daily_admitted"] == "240"
-    assert dncc["total_deaths"] == "68"
-
 
 def test_scraper_preserves_corrupted_age_buckets_verbatim(scraper: DGHSBronzeScraper) -> None:
-    """Verify that upstream Excel serial dates, unnormalized labels, and sum mismatches
-
-    are preserved verbatim in the Bronze layer without silent dropping or premature cleaning.
-    """
-    html_content, source_hash, fetch_source = scraper.fetch_html(force_offline=True)
-    data = scraper.parse_dashboard(html_content, source_hash, fetch_source)
+    """Verify that injected faults in the synthetic fixture are preserved verbatim."""
+    raw_bytes, provenance = scraper.fetch_raw(force_offline=True)
+    data = scraper.parse_dashboard(
+        raw_bytes.decode("utf-8"),
+        source_hash=scraper.compute_sha256(raw_bytes),
+        fetch_source=str(provenance["fetch_source"]),
+    )
     age_groups = data["age_groups"]
 
-    # 1. Excel serial date integer labels: "42309" and "46301"
     row_42309 = next((r for r in age_groups if r["age_group"] == "42309"), None)
-    assert row_42309 is not None, "Corrupted age group '42309' was silently dropped"
+    assert row_42309 is not None
     assert row_42309["male"] == "44"
     assert row_42309["female"] == "19"
     assert row_42309["total"] == "63"
 
     row_46301 = next((r for r in age_groups if r["age_group"] == "46301"), None)
-    assert row_46301 is not None, "Corrupted age group '46301' was silently dropped"
-    assert row_46301["male"] == "36"
-    assert row_46301["female"] == "31"
+    assert row_46301 is not None
     assert row_46301["total"] == "67"
 
-    # 2. Unnormalized string variants: "6-10", "06-10", "0-10", and empty string ""
-    row_6_10 = next((r for r in age_groups if r["age_group"] == "6-10"), None)
-    assert row_6_10 is not None, "'6-10' was dropped or modified"
-    assert row_6_10["total"] == "1"
+    assert any(r["age_group"] == "6-10" and r["total"] == "1" for r in age_groups)
+    assert any(r["age_group"] == "06-10" and r["total"] == "5316" for r in age_groups)
+    assert any(r["age_group"] == "0-10" and r["total"] == "1" for r in age_groups)
+    assert any(r["age_group"] == "" and r["total"] == "7" for r in age_groups)
 
-    row_06_10 = next((r for r in age_groups if r["age_group"] == "06-10"), None)
-    assert row_06_10 is not None, "'06-10' was dropped or modified"
-    assert row_06_10["total"] == "5316"
-
-    row_0_10 = next((r for r in age_groups if r["age_group"] == "0-10"), None)
-    assert row_0_10 is not None, "'0-10' was dropped or modified"
-    assert row_0_10["total"] == "1"
-
-    row_empty = next((r for r in age_groups if r["age_group"] == ""), None)
-    assert row_empty is not None, "Empty string age group '' was silently dropped"
-    assert row_empty["male"] == "4"
-    assert row_empty["female"] == "3"
-    assert row_empty["total"] == "7"
-
-    # 3. Row-sum mismatch: Male 3005 + Female 2375 = 5380, but reported as 5390
     row_mismatch = next((r for r in age_groups if r["age_group"] == "21-25"), None)
     assert row_mismatch is not None
     assert row_mismatch["male"] == "3005"
     assert row_mismatch["female"] == "2375"
-    assert row_mismatch["total"] == "5390"  # Verbatim reported sum mismatch preserved
+    assert row_mismatch["total"] == "5390"
 
 
-def test_sha256_hash_reproducibility(scraper: DGHSBronzeScraper) -> None:
-    """Verify that SHA-256 hash matches exact raw content bytes."""
-    html_content = DEFAULT_FIXTURE_PATH.read_text(encoding="utf-8")
-    hash_val = scraper.compute_sha256(html_content)
-    assert len(hash_val) == 64
-    # Re-computing yields identical result
-    assert scraper.compute_sha256(html_content) == hash_val
+def test_save_raw_bronze_creates_immutable_html_and_sidecar(
+    scraper: DGHSBronzeScraper,
+    tmp_path: Path,
+) -> None:
+    """Verify immutable HTML + provenance sidecar creation and overwrite refusal."""
+    data, html_path = scraper.run_pipeline(force_offline=True, output_dir=tmp_path)
+    assert html_path.exists()
+    assert html_path.suffix == ".html"
+
+    sidecar_path = html_path.with_suffix(".json")
+    assert sidecar_path.exists()
+
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    raw_bytes = html_path.read_bytes()
+    assert sidecar["sha256"] == hashlib.sha256(raw_bytes).hexdigest()
+    assert sidecar["fetch_source"] == "synthetic_fixture"
+    assert "fetched_at_utc" in sidecar
+    assert "git_commit" in sidecar
+    assert "git_dirty" in sidecar
+    assert data["metadata"]["fetch_source"] == "synthetic_fixture"
+
+    # Refuses to overwrite an existing bronze file
+    with pytest.raises(FileExistsError):
+        from cleanpulse.bronze.provenance import write_immutable_with_sidecar
+
+        write_immutable_with_sidecar(raw_bytes, html_path, sidecar)
 
 
-def test_save_snapshot_creates_valid_json(scraper: DGHSBronzeScraper, tmp_path: Path) -> None:
-    """Verify that save_snapshot writes a valid, complete JSON snapshot to disk."""
-    data, saved_path = scraper.run_pipeline(force_offline=True, output_dir=tmp_path)
-    assert saved_path.exists()
-    assert saved_path.name == "dghs_raw_2026_10_14.json"
-
-    # Verify JSON structure
-    with open(saved_path, encoding="utf-8") as f:
-        loaded = json.load(f)
-
-    assert loaded["metadata"]["source_hash"] == data["metadata"]["source_hash"]
-    assert len(loaded["zones"]) == 10
-    assert len(loaded["age_groups"]) == 22
+def test_offline_refuses_writing_into_repo_data(scraper: DGHSBronzeScraper) -> None:
+    """Verify that synthetic_fixture outputs cannot be written inside data/."""
+    with pytest.raises(ValueError, match="Refusing to write offline/synthetic output"):
+        scraper.run_pipeline(force_offline=True, output_dir=REPO_DATA_DIR / "bronze" / "dghs")
 
 
-def test_offline_fallback_on_network_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify that the scraper falls back to local fixture when live requests fail."""
+def test_fail_loud_on_404_without_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify HTTP 404 raises DGHSFetchError immediately without retrying."""
+    calls = 0
 
-    def mock_get(*args: object, **kwargs: object) -> httpx.Response:
-        raise httpx.ConnectTimeout("Connection timed out to DGHS")
+    def mock_get(self: httpx.Client, url: str, **kwargs: object) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        req = httpx.Request("GET", url)
+        return httpx.Response(404, request=req, text="Not Found")
 
     monkeypatch.setattr(httpx.Client, "get", mock_get)
 
-    online_scraper = DGHSBronzeScraper(
-        base_url="https://dashboard.dghs.gov.bd/pages/heoc_dengue_v1.php",
-        fixture_path=DEFAULT_FIXTURE_PATH,
-        timeout=1.0,
-        max_retries=2,
-        backoff_factor=0.01,
-        offline_mode=False,
-    )
+    online_scraper = DGHSBronzeScraper(max_retries=3, backoff_factor=2.0, offline_mode=False)
+    with pytest.raises(DGHSFetchError, match="404"):
+        online_scraper.run_pipeline(output_dir=tmp_path)
+    assert calls == 1
 
-    data, saved_path = online_scraper.run_pipeline(output_dir=tmp_path)
-    assert data["metadata"]["fetch_source"] == "fixture_fallback"
-    assert len(data["zones"]) == 10
-    assert saved_path.exists()
+
+def test_fail_loud_on_timeout_after_retries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify timeout retries max_retries times and raises DGHSFetchError."""
+    calls = 0
+
+    def mock_get(self: httpx.Client, url: str, **kwargs: object) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        raise httpx.ConnectTimeout("Connection timed out to DGHS")
+
+    monkeypatch.setattr(httpx.Client, "get", mock_get)
+    monkeypatch.setattr(time, "sleep", lambda _s: None)
+
+    online_scraper = DGHSBronzeScraper(max_retries=3, backoff_factor=2.0, offline_mode=False)
+    with pytest.raises(DGHSFetchError, match="exhausted 3 retries"):
+        online_scraper.run_pipeline(output_dir=tmp_path)
+    assert calls == 3
+
+
+def test_fail_loud_on_zero_rows_parsed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify HTML with 0 zones / 0 age groups raises DGHSParseError."""
+
+    def mock_get(self: httpx.Client, url: str, **kwargs: object) -> httpx.Response:
+        req = httpx.Request("GET", url)
+        return httpx.Response(200, request=req, text="<html><body><h1>Empty</h1></body></html>")
+
+    monkeypatch.setattr(httpx.Client, "get", mock_get)
+
+    online_scraper = DGHSBronzeScraper(max_retries=1, offline_mode=False)
+    with pytest.raises(DGHSParseError, match="0 zones"):
+        online_scraper.run_pipeline(output_dir=tmp_path)

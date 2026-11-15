@@ -1,42 +1,43 @@
 """Open-Meteo Historical Archive Batch Client & Weather Daily Silver Module.
 
-Fetches 180-day monsoon climate data (2026-04-18 to 2026-10-14) for all 64 districts
-of Bangladesh using batched multi-coordinate requests to the Open-Meteo Historical
-Archive API (https://archive-api.open-meteo.com/v1/archive).
-
-Features:
-  - Multi-coordinate batching (comma-separated latitudes & longitudes).
-  - Retry mechanism with exponential backoff.
-  - Deterministic offline fallback generator matching Bangladesh monsoon dynamics for CI.
-  - Strict Pandera silver validation (WeatherDailySilverSchema) ensuring 11,520 valid rows.
-  - Parquet export to data/silver/weather_districts_daily.parquet.
+Fetches daily climate data (temperature_2m_mean, precipitation_sum,
+relative_humidity_2m_mean) for all 64 districts of Bangladesh from the
+Open-Meteo Historical Archive API, stores raw API JSON responses in immutable
+Bronze storage with provenance sidecars, and builds the Pandera-validated
+Silver Parquet table from those Bronze files.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 import math
 import time
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
 import httpx
-import numpy as np
 import pandas as pd  # type: ignore[import-untyped]
 import pandera.pandas as pa
 
+from cleanpulse.bronze.provenance import write_immutable_with_sidecar
 from cleanpulse.silver.spatial_crosswalk import load_district_crosswalk
 
 logger = logging.getLogger(__name__)
 
 OPEN_METEO_ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
-DEFAULT_SILVER_WEATHER_PARQUET = (
-    Path(__file__).resolve().parents[4] / "data" / "silver" / "weather_districts_daily.parquet"
-)
+REPO_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_BRONZE_WEATHER_DIR = REPO_ROOT / "data" / "bronze" / "weather"
+DEFAULT_SILVER_WEATHER_PARQUET = REPO_ROOT / "data" / "silver" / "weather_districts_daily.parquet"
 
 DEFAULT_START_DATE = "2026-04-18"
 DEFAULT_END_DATE = "2026-10-14"
+
+
+class WeatherFetchError(RuntimeError):
+    """Raised when fetching live Open-Meteo archive data fails."""
+
 
 # ---------------------------------------------------------------------------
 # Pandera Silver Validation Schema
@@ -72,7 +73,7 @@ WeatherDailySilverSchema = pa.DataFrameSchema(
 
 
 class OpenMeteoWeatherClient:
-    """Client for retrieving and validating daily climate time series across Bangladesh."""
+    """Client for retrieving, archiving, and validating daily climate time series."""
 
     def __init__(
         self,
@@ -81,14 +82,6 @@ class OpenMeteoWeatherClient:
         max_retries: int = 3,
         batch_size: int = 16,
     ) -> None:
-        """Initialize the Open-Meteo weather client.
-
-        Args:
-            base_url: Open-Meteo Historical Archive API base URL.
-            timeout_seconds: HTTP client timeout per request.
-            max_retries: Number of retry attempts on network error.
-            batch_size: Number of coordinates to batch in a single multi-coordinate request.
-        """
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.max_retries = max_retries
@@ -102,89 +95,13 @@ class OpenMeteoWeatherClient:
         days = (d_end - d_start).days + 1
         return [(d_start + timedelta(days=i)).isoformat() for i in range(days)]
 
-    def generate_offline_fallback(
-        self,
-        districts: list[dict[str, Any]],
-        start_date: str = DEFAULT_START_DATE,
-        end_date: str = DEFAULT_END_DATE,
-        seed: int = 42,
-    ) -> pd.DataFrame:
-        """Generate deterministic, realistic monsoon weather series offline.
-
-        Simulates Bangladesh monsoon seasonal pattern:
-          - April-May: High heat (30-36°C), moderate humidity (65-75%), pre-monsoon showers.
-          - June-August: Monsoon peak, heavy precipitation (10-75 mm/day), high humidity (80-95%),
-            slightly suppressed temperatures (27-31°C).
-          - September-October: Monsoon tapering, warm (28-32°C), moderate rain, humidity (75-85%).
-
-        Args:
-            districts: List of district dictionaries from crosswalk.
-            start_date: Start date string (YYYY-MM-DD).
-            end_date: End date string (YYYY-MM-DD).
-            seed: Seed for pseudo-random number generator.
-
-        Returns:
-            DataFrame conforming to WeatherDailySilverSchema.
-        """
-        rng = np.random.default_rng(seed)
-        dates = self.generate_dates(start_date, end_date)
-
-        records: list[dict[str, Any]] = []
-
-        for dist in districts:
-            # District-specific slight offset
-            lat = dist["latitude"]
-            lon = dist["longitude"]
-            lat_effect = (24.0 - lat) * 0.3  # South slightly warmer/wetter
-            east_effect = (lon - 90.0) * 0.2  # East (Sylhet/Chattogram) wetter
-
-            for day_idx, d_str in enumerate(dates):
-                # Monsoon seasonal bell curve centered around day 70-110 (June-August)
-                monsoon_intensity = math.exp(-0.5 * ((day_idx - 85) / 35.0) ** 2)
-
-                # Temperature: Pre-monsoon peak, dips in rainy season, slight post-monsoon rise
-                base_temp = 32.5 - (monsoon_intensity * 3.5) + lat_effect
-                temp_noise = float(rng.normal(0, 1.2))
-                temp = round(float(np.clip(base_temp + temp_noise, 22.0, 42.0)), 1)
-
-                # Humidity: Climbs with monsoon intensity
-                base_humidity = 68.0 + (monsoon_intensity * 22.0)
-                humidity_noise = float(rng.normal(0, 3.0))
-                humidity = round(float(np.clip(base_humidity + humidity_noise, 45.0, 99.0)), 1)
-
-                # Precipitation: Spikes during monsoon
-                rain_prob = 0.25 + (monsoon_intensity * 0.55)
-                is_raining = rng.random() < rain_prob
-                if is_raining:
-                    rain_amount = float(
-                        rng.gamma(shape=2.0, scale=8.0 + (monsoon_intensity * 14.0) + east_effect)
-                    )
-                    precip = round(max(rain_amount, 0.1), 1)
-                else:
-                    precip = 0.0
-
-                records.append(
-                    {
-                        "date": d_str,
-                        "district_id": dist["district_id"],
-                        "district_name": dist["district_name"],
-                        "dghs_reporting_zone": dist["dghs_reporting_zone"],
-                        "temperature_2m_mean": temp,
-                        "precipitation_sum": precip,
-                        "relative_humidity_2m_mean": humidity,
-                    }
-                )
-
-        df = pd.DataFrame(records)
-        return WeatherDailySilverSchema.validate(df, lazy=True)
-
-    def _fetch_batch_online(
+    def _fetch_batch_raw(
         self,
         batch_districts: list[dict[str, Any]],
         start_date: str,
         end_date: str,
-    ) -> list[dict[str, Any]]:
-        """Execute a single multi-coordinate batch request to Open-Meteo Archive API."""
+    ) -> tuple[bytes, dict[str, Any]]:
+        """Fetch raw Open-Meteo JSON bytes for a coordinate batch. Fails loudly."""
         lats = ",".join(str(d["latitude"]) for d in batch_districts)
         lons = ",".join(str(d["longitude"]) for d in batch_districts)
 
@@ -197,6 +114,7 @@ class OpenMeteoWeatherClient:
             "timezone": "Asia/Dhaka",
         }
 
+        last_error: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
             try:
                 resp = httpx.get(
@@ -204,139 +122,189 @@ class OpenMeteoWeatherClient:
                     params=params,
                     timeout=self.timeout_seconds,
                 )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    # Open-Meteo returns a single dict if len==1, or list of dicts if len > 1
-                    if isinstance(data, dict):
-                        return [data]
-                    elif isinstance(data, list):
-                        return data
-                    raise ValueError(f"Unexpected response structure: {type(data)}")
+                if 400 <= resp.status_code < 500:
+                    raise WeatherFetchError(
+                        f"Open-Meteo returned non-retryable HTTP {resp.status_code}: "
+                        f"{resp.text[:200]}"
+                    )
+                if resp.status_code >= 500:
+                    raise httpx.HTTPStatusError(
+                        f"Open-Meteo HTTP {resp.status_code}",
+                        request=resp.request,
+                        response=resp,
+                    )
+
+                # Validate JSON structure before archiving
+                parsed = resp.json()
+                if not isinstance(parsed, (dict, list)):
+                    raise WeatherFetchError(f"Unexpected Open-Meteo payload type: {type(parsed)}")
+
+                fetched_at = datetime.now(UTC).isoformat()
+                return resp.content, {
+                    "url": str(resp.url),
+                    "request_params": params,
+                    "district_ids": [str(d["district_id"]) for d in batch_districts],
+                    "http_status": resp.status_code,
+                    "fetched_at_utc": fetched_at,
+                    "fetch_source": "live",
+                }
+            except WeatherFetchError:
+                raise
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as exc:
+                last_error = exc
                 logger.warning(
-                    "Open-Meteo HTTP %d on attempt %d: %s",
-                    resp.status_code,
+                    "Transient Open-Meteo error on attempt %d/%d: %s",
                     attempt,
-                    resp.text[:150],
+                    self.max_retries,
+                    exc,
                 )
+                if attempt < self.max_retries:
+                    time.sleep(2.0 * (2 ** (attempt - 1)))
             except Exception as exc:
-                logger.warning("Network error on attempt %d/%d: %s", attempt, self.max_retries, exc)
+                raise WeatherFetchError(f"Unexpected Open-Meteo error: {exc}") from exc
 
-            if attempt < self.max_retries:
-                time.sleep(1.0 * (2 ** (attempt - 1)))
+        raise WeatherFetchError(
+            f"Failed to fetch climate batch after {self.max_retries} attempts: {last_error}"
+        ) from last_error
 
-        raise RuntimeError(
-            f"Failed to fetch climate batch after {self.max_retries} attempts from {self.base_url}"
-        )
+    def ingest_bronze_batches(
+        self,
+        crosswalk_df: pd.DataFrame | None = None,
+        start_date: str = DEFAULT_START_DATE,
+        end_date: str = DEFAULT_END_DATE,
+        bronze_dir: Path | str | None = None,
+    ) -> list[Path]:
+        """Fetch all 64-district batches from Open-Meteo and save immutable Bronze files.
+
+        Fetches all batches first before writing to Bronze so a mid-run batch failure
+        does not leave partial batch sets, or raises WeatherFetchError immediately.
+        """
+        cw = crosswalk_df if crosswalk_df is not None else load_district_crosswalk()
+        districts: list[dict[str, Any]] = cw.to_dict(orient="records")
+        target_bronze = Path(bronze_dir) if bronze_dir is not None else DEFAULT_BRONZE_WEATHER_DIR
+
+        fetched_batches: list[tuple[bytes, dict[str, Any], int]] = []
+        for batch_idx, i in enumerate(range(0, len(districts), self.batch_size)):
+            batch = districts[i : i + self.batch_size]
+            raw_bytes, provenance = self._fetch_batch_raw(batch, start_date, end_date)
+            fetched_batches.append((raw_bytes, provenance, batch_idx))
+
+        saved_paths: list[Path] = []
+        for raw_bytes, provenance, batch_idx in fetched_batches:
+            fetched_dt = datetime.fromisoformat(str(provenance["fetched_at_utc"]))
+            date_folder = fetched_dt.strftime("%Y-%m-%d")
+            ts_name = fetched_dt.strftime("%Y%m%dT%H%M%S%fZ")
+            raw_path = target_bronze / date_folder / f"{ts_name}_batch_{batch_idx:02d}.json"
+            saved_raw, _saved_sidecar = write_immutable_with_sidecar(
+                raw_bytes=raw_bytes,
+                target_path=raw_path,
+                sidecar_metadata=provenance,
+            )
+            saved_paths.append(saved_raw)
+
+        logger.info("Archived %d Open-Meteo Bronze batches to %s", len(saved_paths), target_bronze)
+        return saved_paths
+
+    def build_silver_from_bronze(
+        self,
+        bronze_paths: list[Path],
+        crosswalk_df: pd.DataFrame | None = None,
+        output_parquet: Path | str | None = DEFAULT_SILVER_WEATHER_PARQUET,
+    ) -> pd.DataFrame:
+        """Build validated Silver weather Parquet strictly from archived Bronze JSON files."""
+        if not bronze_paths:
+            raise ValueError("No Bronze weather files provided to build Silver table.")
+
+        cw = crosswalk_df if crosswalk_df is not None else load_district_crosswalk()
+        districts_by_id: dict[str, dict[str, Any]] = {
+            str(rec["district_id"]): rec for rec in cw.to_dict(orient="records")
+        }
+
+        all_records: list[dict[str, Any]] = []
+        for raw_path in sorted(bronze_paths):
+            payload = json.loads(raw_path.read_text(encoding="utf-8"))
+            batch_responses = [payload] if isinstance(payload, dict) else payload
+
+            sidecar_path = raw_path.with_name(f"{raw_path.stem}.sidecar.json")
+            if not sidecar_path.exists():
+                raise FileNotFoundError(f"Missing provenance sidecar for Bronze file: {raw_path}")
+            sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            batch_district_ids: list[str] = [str(did) for did in sidecar["district_ids"]]
+
+            if len(batch_responses) != len(batch_district_ids):
+                raise ValueError(
+                    f"Batch response count ({len(batch_responses)}) does not match "
+                    f"district count ({len(batch_district_ids)}) in {raw_path}"
+                )
+
+            for dist_id, resp_data in zip(batch_district_ids, batch_responses, strict=True):
+                dist_meta = districts_by_id[dist_id]
+                daily = resp_data.get("daily", {})
+                times = daily.get("time", [])
+                temps = daily.get("temperature_2m_mean", [])
+                precips = daily.get("precipitation_sum", [])
+                humidities = daily.get("relative_humidity_2m_mean", [])
+
+                for day_str, t_val, p_val, h_val in zip(
+                    times, temps, precips, humidities, strict=True
+                ):
+                    if (
+                        t_val is None
+                        or p_val is None
+                        or h_val is None
+                        or math.isnan(float(t_val))
+                        or math.isnan(float(p_val))
+                        or math.isnan(float(h_val))
+                    ):
+                        raise ValueError(
+                            f"Missing/NaN Open-Meteo value for {dist_id} on {day_str} in {raw_path}"
+                        )
+
+                    all_records.append(
+                        {
+                            "date": str(day_str),
+                            "district_id": dist_meta["district_id"],
+                            "district_name": dist_meta["district_name"],
+                            "dghs_reporting_zone": dist_meta["dghs_reporting_zone"],
+                            "temperature_2m_mean": round(float(t_val), 1),
+                            "precipitation_sum": round(max(float(p_val), 0.0), 1),
+                            "relative_humidity_2m_mean": round(
+                                min(max(float(h_val), 0.0), 100.0), 1
+                            ),
+                        }
+                    )
+
+        df_online = pd.DataFrame(all_records)
+        df_result = WeatherDailySilverSchema.validate(df_online, lazy=True)
+
+        if output_parquet is not None:
+            out_path = Path(output_parquet)
+            out_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = out_path.with_suffix(".parquet.tmp")
+            df_result.to_parquet(tmp_path, index=False)
+            tmp_path.replace(out_path)
+            logger.info("Exported %d weather rows to %s", len(df_result), out_path)
+
+        return df_result
 
     def fetch_climate_data(
         self,
         crosswalk_df: pd.DataFrame | None = None,
         start_date: str = DEFAULT_START_DATE,
         end_date: str = DEFAULT_END_DATE,
-        force_offline: bool = False,
+        bronze_dir: Path | str | None = None,
         output_parquet: Path | str | None = DEFAULT_SILVER_WEATHER_PARQUET,
     ) -> pd.DataFrame:
-        """Fetch daily weather series for all 64 districts across the 180-day window.
-
-        Tries live batched API calls first. Falls back to deterministic simulation on
-        network error or when force_offline=True.
-
-        Args:
-            crosswalk_df: Optional preloaded 64-district crosswalk DataFrame.
-            start_date: ISO start date string (2026-04-18).
-            end_date: ISO end date string (2026-10-14).
-            force_offline: If True, bypasses network calls directly using offline fallback.
-            output_parquet: Optional path to save validated Parquet table.
-
-        Returns:
-            Validated DataFrame matching WeatherDailySilverSchema (11,520 rows).
-        """
+        """Fetch live Open-Meteo batches into Bronze, then build Silver from Bronze."""
         cw = crosswalk_df if crosswalk_df is not None else load_district_crosswalk()
-        districts: list[dict[str, Any]] = cw.to_dict(orient="records")
-
-        if force_offline:
-            logger.info("force_offline=True; generating deterministic climate simulation.")
-            df_result = self.generate_offline_fallback(districts, start_date, end_date)
-        else:
-            try:
-                logger.info(
-                    "Attempting live Open-Meteo Archive batch queries for %d districts...",
-                    len(districts),
-                )
-                all_records: list[dict[str, Any]] = []
-
-                # Chunk districts by batch_size
-                for i in range(0, len(districts), self.batch_size):
-                    batch = districts[i : i + self.batch_size]
-                    batch_responses = self._fetch_batch_online(batch, start_date, end_date)
-
-                    for dist_meta, resp_data in zip(batch, batch_responses, strict=False):
-                        daily = resp_data.get("daily", {})
-                        times = daily.get("time", [])
-                        temps = daily.get("temperature_2m_mean", [])
-                        precips = daily.get("precipitation_sum", [])
-                        humidities = daily.get("relative_humidity_2m_mean", [])
-
-                        for day_str, t_val, p_val, h_val in zip(
-                            times, temps, precips, humidities, strict=False
-                        ):
-                            # Deterministic fallback imputation if any individual coordinate
-                            # point is None
-                            t_clean = (
-                                float(t_val)
-                                if t_val is not None and not math.isnan(t_val)
-                                else 30.0
-                            )
-                            p_clean = (
-                                float(p_val) if p_val is not None and not math.isnan(p_val) else 0.0
-                            )
-                            h_clean = (
-                                float(h_val)
-                                if h_val is not None and not math.isnan(h_val)
-                                else 75.0
-                            )
-
-                            all_records.append(
-                                {
-                                    "date": day_str,
-                                    "district_id": dist_meta["district_id"],
-                                    "district_name": dist_meta["district_name"],
-                                    "dghs_reporting_zone": dist_meta["dghs_reporting_zone"],
-                                    "temperature_2m_mean": round(t_clean, 1),
-                                    "precipitation_sum": round(max(p_clean, 0.0), 1),
-                                    "relative_humidity_2m_mean": round(
-                                        min(max(h_clean, 0.0), 100.0), 1
-                                    ),
-                                }
-                            )
-
-                df_online = pd.DataFrame(all_records)
-                df_result = WeatherDailySilverSchema.validate(df_online, lazy=True)
-                logger.info("Successfully fetched and validated live Open-Meteo climate records.")
-            except Exception as exc:
-                logger.warning(
-                    "Online Open-Meteo query failed (%s). Checking for verified cache.",
-                    exc,
-                )
-                if output_parquet is not None and Path(output_parquet).exists():
-                    try:
-                        df_cached = pd.read_parquet(output_parquet)
-                        num_days = len(self.generate_dates(start_date, end_date))
-                        expected_len = len(districts) * num_days
-                        if len(df_cached) == expected_len:
-                            logger.info(
-                                "Reusing existing verified weather parquet (%d rows)",
-                                len(df_cached),
-                            )
-                            return df_cached
-                    except Exception:
-                        pass
-                df_result = self.generate_offline_fallback(districts, start_date, end_date)
-
-        if output_parquet is not None:
-            out_path = Path(output_parquet)
-            out_path.parent.mkdir(parents=True, exist_ok=True)
-            df_result.to_parquet(out_path, index=False)
-            logger.info("Exported %d weather rows to %s", len(df_result), out_path)
-
-        return df_result
+        bronze_paths = self.ingest_bronze_batches(
+            crosswalk_df=cw,
+            start_date=start_date,
+            end_date=end_date,
+            bronze_dir=bronze_dir,
+        )
+        return self.build_silver_from_bronze(
+            bronze_paths=bronze_paths,
+            crosswalk_df=cw,
+            output_parquet=output_parquet,
+        )

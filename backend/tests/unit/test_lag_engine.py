@@ -1,10 +1,11 @@
-"""Unit tests for the Gold Layer DuckDB Spatiotemporal Lag Engine."""
+"""Unit tests for the Gold Layer DuckDB Spatiotemporal Lag Engine using in-test synthetic data."""
 
 from __future__ import annotations
 
+from datetime import date, timedelta
 from pathlib import Path
 
-import duckdb
+import pandas as pd
 
 from cleanpulse.gold.lag_engine import (
     GOLD_ZONES_LIST,
@@ -12,77 +13,65 @@ from cleanpulse.gold.lag_engine import (
     GoldDailySchema,
     GoldLagCorrelationSchema,
 )
-
-DATA_DIR = Path(__file__).resolve().parents[3] / "data"
-GOLD_DAILY_PARQUET = DATA_DIR / "gold" / "zone_daily_climate_dengue.parquet"
-GOLD_LAGS_PARQUET = DATA_DIR / "gold" / "zone_lag_correlations.parquet"
+from cleanpulse.silver.spatial_crosswalk import load_district_crosswalk
+from tests.synthetic_weather import generate_synthetic_weather
 
 
-def test_gold_parquet_artifacts_exist_and_schemas_valid() -> None:
-    """Verify materialized Gold parquet files exist and validate against Pandera schemas."""
-    assert GOLD_DAILY_PARQUET.exists(), f"Missing {GOLD_DAILY_PARQUET}"
-    assert GOLD_LAGS_PARQUET.exists(), f"Missing {GOLD_LAGS_PARQUET}"
+def test_lag_engine_with_in_test_synthetic_data(tmp_path: Path) -> None:
+    """Verify DuckDBLagEngine computes valid Gold tables on tiny in-test synthetic inputs."""
+    silver_dir = tmp_path / "silver"
+    gold_dir = tmp_path / "gold"
+    silver_dir.mkdir(parents=True)
 
-    con = duckdb.connect(":memory:")
-    daily_df = con.execute(
-        f"SELECT * FROM read_parquet('{GOLD_DAILY_PARQUET.as_posix()}')"
-    ).fetchdf()
-    lags_df = con.execute(f"SELECT * FROM read_parquet('{GOLD_LAGS_PARQUET.as_posix()}')").fetchdf()
+    cw = load_district_crosswalk()
+    start = date(2026, 9, 1)
+    num_days = 45
+    dates = [(start + timedelta(days=i)).isoformat() for i in range(num_days)]
 
-    assert len(daily_df) == 1800, f"Expected 1800 daily rows, got {len(daily_df)}"
-    assert len(lags_df) == 319, (
-        f"Expected 319 lag correlation rows (11 zones * 29 offsets), got {len(lags_df)}"
+    # 1. Generate small in-test synthetic weather
+    weather_df = generate_synthetic_weather(
+        cw.to_dict(orient="records"),
+        start_date=dates[0],
+        end_date=dates[-1],
+        seed=7,
     )
+    weather_df.to_parquet(silver_dir / "weather_districts_daily.parquet", index=False)
+
+    # 2. Generate small in-test synthetic dengue zone series for all 10 zones
+    zones = [z for z in GOLD_ZONES_LIST if z != "National"]
+    dengue_rows: list[dict[str, object]] = []
+    for z_idx, zone_name in enumerate(zones):
+        cum_adm = 0
+        cum_deaths = 0
+        for d_idx, d_str in enumerate(dates):
+            daily_adm = 10 + z_idx + (d_idx % 7)
+            daily_dth = 1 if d_idx % 10 == 0 else 0
+            cum_adm += daily_adm
+            cum_deaths += daily_dth
+            dengue_rows.append(
+                {
+                    "report_date": d_str,
+                    "zone_name": zone_name,
+                    "daily_admitted": daily_adm,
+                    "daily_deaths": daily_dth,
+                    "total_admitted": cum_adm,
+                    "total_deaths": cum_deaths,
+                    "total_discharged": max(cum_adm - cum_deaths - 5, 0),
+                }
+            )
+    pd.DataFrame(dengue_rows).to_parquet(silver_dir / "dengue_zones_daily.parquet", index=False)
+
+    # 3. Run DuckDBLagEngine in tmp_path
+    engine = DuckDBLagEngine(silver_dir=silver_dir, gold_dir=gold_dir)
+    daily_df, lags_df = engine.build_gold_tables(save_parquet=True)
+
+    assert (gold_dir / "zone_daily_climate_dengue.parquet").exists()
+    assert (gold_dir / "zone_lag_correlations.parquet").exists()
 
     GoldDailySchema.validate(daily_df)
     GoldLagCorrelationSchema.validate(lags_df)
 
-
-def test_gold_zones_and_lag_coverage() -> None:
-    """Verify all 10 DGHS zones plus 'National' have complete 0..28 lag coverage."""
-    con = duckdb.connect(":memory:")
-    lags_df = con.execute(f"SELECT * FROM read_parquet('{GOLD_LAGS_PARQUET.as_posix()}')").fetchdf()
-
-    unique_zones = sorted(lags_df["zone_name"].unique().tolist())
-    expected_zones = sorted(GOLD_ZONES_LIST)
-    assert unique_zones == expected_zones, (
-        f"Mismatch in zone list: {unique_zones} vs {expected_zones}"
-    )
-
+    assert sorted(lags_df["zone_name"].unique().tolist()) == sorted(GOLD_ZONES_LIST)
     for zone in GOLD_ZONES_LIST:
-        zone_subset = lags_df[lags_df["zone_name"] == zone]
-        assert len(zone_subset) == 29
-        offsets = sorted(zone_subset["lag_days"].tolist())
+        offsets = sorted(lags_df[lags_df["zone_name"] == zone]["lag_days"].tolist())
         assert offsets == list(range(29))
-
-
-def test_national_peak_correlation_in_biological_window() -> None:
-    """Verify that empirical correlation peaks within the biological window (14..18 days)."""
-    con = duckdb.connect(":memory:")
-    lags_df = con.execute(
-        f"""
-        SELECT lag_days, pearson_r_humidity, pearson_r_precip
-        FROM read_parquet('{GOLD_LAGS_PARQUET.as_posix()}')
-        WHERE zone_name = 'National'
-        ORDER BY pearson_r_humidity DESC
-        """
-    ).fetchdf()
-
-    peak_lag_humidity = int(lags_df.iloc[0]["lag_days"])
-    peak_r_humidity = float(lags_df.iloc[0]["pearson_r_humidity"])
-
-    assert 14 <= peak_lag_humidity <= 18, (
-        f"Expected national humidity peak lag between 14..18 days, got {peak_lag_humidity}"
-    )
-    assert peak_r_humidity > 0.5, f"Expected strong positive correlation, got {peak_r_humidity}"
-
-
-def test_duckdb_lag_engine_idempotent_build() -> None:
-    """Verify DuckDBLagEngine can execute end-to-end and idempotently re-materialize Gold tables."""
-    engine = DuckDBLagEngine()
-    daily_df, lags_df = engine.build_gold_tables()
-
-    assert len(daily_df) == 1800
-    assert len(lags_df) == 319
-    assert "zone_name" in daily_df.columns
-    assert "precip_7d_avg" in daily_df.columns

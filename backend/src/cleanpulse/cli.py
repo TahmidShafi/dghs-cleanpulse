@@ -2,28 +2,25 @@
 
 Provides command-line subcommands to execute and verify individual Medallion layers:
   - scrape-bronze: Ingests raw DGHS HTML and Open-Meteo 64-district climate data.
-  - run-silver: Runs Pandera sanitization firewall and 180-day time-series backfill.
-  - build-gold: Materializes DuckDB spatiotemporal lag views and correlation matrices.
-  - export-snapshot: Updates frontend/public/data/fallback_snapshot.json.
-  - run-all: Executes the complete Bronze -> Silver -> Gold -> Snapshot pipeline end-to-end.
+  - ingest-weather: Fetches live Open-Meteo batches into immutable Bronze storage.
+  - build-silver: Builds Silver tables from Bronze (supports --weather-only while DGHS is down).
+  - run-silver: Alias for build-silver.
+  - export-snapshot: Updates frontend/public/data/fallback_snapshot.json from real data.
+  - run-all: Executes the complete live pipeline (fails loudly if DGHS or weather fails).
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from cleanpulse.bronze.dghs_scraper import DGHSBronzeScraper
 from cleanpulse.bronze.weather_client import OpenMeteoWeatherClient
-from cleanpulse.gold.lag_engine import DuckDBLagEngine
 from cleanpulse.silver.firewall import SilverSanitizerFirewall
-from cleanpulse.silver.timeseries_backfill import EpidemiologicalBackfillGenerator
 
 logger = logging.getLogger("cleanpulse.cli")
 
@@ -46,14 +43,65 @@ class StageResult:
     output_path: str
 
 
-def run_scrape_bronze(offline: bool = False) -> list[StageResult]:
-    """Execute Bronze layer ingestion for DGHS dashboard and weather archive."""
+def _rel_path(path: Path) -> str:
+    try:
+        return str(path.relative_to(REPO_ROOT))
+    except ValueError:
+        return str(path)
+
+
+def _find_latest_weather_bronze_batches(weather_bronze_dir: Path) -> list[Path]:
+    """Return raw JSON batch paths from the most recent date directory in Bronze weather."""
+    if not weather_bronze_dir.exists():
+        raise FileNotFoundError(f"Weather Bronze directory does not exist: {weather_bronze_dir}")
+    date_dirs = sorted(p for p in weather_bronze_dir.iterdir() if p.is_dir())
+    if not date_dirs:
+        raise FileNotFoundError(
+            f"No date-partitioned Bronze weather batches in {weather_bronze_dir}"
+        )
+    latest_dir = date_dirs[-1]
+    batch_files = sorted(
+        p for p in latest_dir.glob("*.json") if not p.name.endswith(".sidecar.json")
+    )
+    if not batch_files:
+        raise FileNotFoundError(f"No raw weather JSON batches found in {latest_dir}")
+    return batch_files
+
+
+def run_ingest_weather(bronze_weather_dir: Path | None = None) -> list[StageResult]:
+    """Fetch live Open-Meteo climate batches into immutable Bronze storage."""
+    t0 = time.perf_counter()
+    target_dir = bronze_weather_dir or (BRONZE_DIR / "weather")
+    weather_client = OpenMeteoWeatherClient()
+    batch_paths = weather_client.ingest_bronze_batches(bronze_dir=target_dir)
+    dur = time.perf_counter() - t0
+    return [
+        StageResult(
+            stage_name="1. Bronze Open-Meteo Weather",
+            status="SUCCESS",
+            metrics=f"{len(batch_paths)} Raw JSON Batches",
+            duration_sec=dur,
+            output_path=_rel_path(batch_paths[-1].parent),
+        )
+    ]
+
+
+def run_scrape_bronze(
+    offline: bool = False,
+    offline_output_dir: Path | None = None,
+) -> list[StageResult]:
+    """Execute Bronze layer ingestion for DGHS dashboard and Open-Meteo weather."""
     results: list[StageResult] = []
 
-    # 1. DGHS Scraping
+    # 1. DGHS Scraping (fails loudly on live errors; --offline never writes to data/)
     t0 = time.perf_counter()
     scraper = DGHSBronzeScraper(offline_mode=offline)
-    data, snapshot_path = scraper.run_pipeline(force_offline=offline, output_dir=BRONZE_DIR)
+    target_dghs_dir = (
+        offline_output_dir or (Path.cwd() / "offline_bronze" / "dghs")
+        if offline
+        else (BRONZE_DIR / "dghs")
+    )
+    data, html_path = scraper.run_pipeline(force_offline=offline, output_dir=target_dghs_dir)
     dur_dghs = time.perf_counter() - t0
 
     zones_count = len(data.get("zones", []))
@@ -64,185 +112,104 @@ def run_scrape_bronze(offline: bool = False) -> list[StageResult]:
             status="SUCCESS",
             metrics=f"{zones_count} Zones, {age_count} Age Buckets",
             duration_sec=dur_dghs,
-            output_path=str(snapshot_path.relative_to(REPO_ROOT)),
+            output_path=_rel_path(html_path),
         )
     )
 
-    # 2. Weather Batch Scraping
-    t0 = time.perf_counter()
-    weather_target = SILVER_DIR / "weather_districts_daily.parquet"
-    if offline and weather_target.exists():
-        import pandas as pd
-
-        weather_df = pd.read_parquet(weather_target)
-    else:
-        try:
-            weather_client = OpenMeteoWeatherClient()
-            weather_df = weather_client.fetch_climate_data(
-                force_offline=offline,
-                output_parquet=weather_target,
-            )
-        except Exception as exc:
-            logger.warning(
-                "Live weather query raised error (%s); falling back to cached table.",
-                exc,
-            )
-            import pandas as pd
-
-            if weather_target.exists():
-                weather_df = pd.read_parquet(weather_target)
-            else:
-                weather_client = OpenMeteoWeatherClient()
-                weather_df = weather_client.fetch_climate_data(
-                    force_offline=True,
-                    output_parquet=weather_target,
-                )
-    dur_weather = time.perf_counter() - t0
-    results.append(
-        StageResult(
-            stage_name="2. Bronze Open-Meteo Weather",
-            status="SUCCESS",
-            metrics=f"{len(weather_df):,} District-Days (64 Dist)",
-            duration_sec=dur_weather,
-            output_path=str(weather_target.relative_to(REPO_ROOT)),
-        )
-    )
+    if not offline:
+        results.extend(run_ingest_weather())
 
     return results
 
 
-def run_silver_pipeline() -> list[StageResult]:
-    """Execute Silver Pandera validation firewall and 180-day backfill generator."""
+def run_silver_pipeline(
+    weather_only: bool = False,
+    bronze_dir: Path | None = None,
+    silver_dir: Path | None = None,
+) -> list[StageResult]:
+    """Execute Silver layer validation from immutable Bronze files."""
     results: list[StageResult] = []
+    b_dir = bronze_dir or BRONZE_DIR
+    s_dir = silver_dir or SILVER_DIR
 
-    # 1. Locate latest bronze snapshot
-    bronze_files = sorted(BRONZE_DIR.glob("dghs_raw_*.json"))
-    if not bronze_files:
-        raise FileNotFoundError(f"No Bronze JSON snapshots found in {BRONZE_DIR}")
-    latest_bronze = bronze_files[-1]
-
-    # 2. Silver Firewall
+    # 1. Weather Silver from Bronze
     t0 = time.perf_counter()
-    firewall = SilverSanitizerFirewall(output_dir=SILVER_DIR)
-    silver_result = firewall.process_bronze_snapshot(bronze_data_or_path=latest_bronze)
+    batch_files = _find_latest_weather_bronze_batches(b_dir / "weather")
+    weather_target = s_dir / "weather_districts_daily.parquet"
+    weather_df = OpenMeteoWeatherClient().build_silver_from_bronze(
+        bronze_paths=batch_files,
+        output_parquet=weather_target,
+    )
+    dur_weather = time.perf_counter() - t0
+    dist_count = weather_df["district_id"].nunique()
+    results.append(
+        StageResult(
+            stage_name="2. Silver Open-Meteo Weather",
+            status="SUCCESS",
+            metrics=f"{len(weather_df):,} District-Days ({dist_count} Dist)",
+            duration_sec=dur_weather,
+            output_path=_rel_path(weather_target),
+        )
+    )
+
+    if weather_only:
+        return results
+
+    # 2. DGHS Silver Firewall from latest Bronze HTML
+    dghs_bronze_dir = b_dir / "dghs"
+    html_files = sorted(dghs_bronze_dir.rglob("*.html")) if dghs_bronze_dir.exists() else []
+    if not html_files:
+        raise FileNotFoundError(f"No Bronze DGHS HTML files found in {dghs_bronze_dir}")
+    latest_html = html_files[-1]
+
+    t0 = time.perf_counter()
+    parsed = DGHSBronzeScraper().parse_bronze_file(latest_html)
+    firewall = SilverSanitizerFirewall(output_dir=s_dir)
+    silver_result = firewall.process_bronze_snapshot(bronze_data_or_path=parsed)
     dur_firewall = time.perf_counter() - t0
 
-    num_cohorts = len(silver_result.age_groups_df)
-    num_anomalies = len(silver_result.anomalies_df)
     results.append(
         StageResult(
             stage_name="3. Silver Pandera Firewall",
             status="SUCCESS",
-            metrics=f"{num_cohorts} Cohorts, {num_anomalies} Intercepted Bugs",
+            metrics=(
+                f"{len(silver_result.age_groups_df)} Cohorts, "
+                f"{len(silver_result.anomalies_df)} Anomalies"
+            ),
             duration_sec=dur_firewall,
-            output_path=str(SILVER_DIR.relative_to(REPO_ROOT)),
-        )
-    )
-
-    # 3. 180-day Time-series Backfill
-    t0 = time.perf_counter()
-    backfill_gen = EpidemiologicalBackfillGenerator(
-        weather_parquet_path=SILVER_DIR / "weather_districts_daily.parquet"
-    )
-    backfill_df = backfill_gen.generate_180_day_series(
-        output_parquet=SILVER_DIR / "dengue_zones_daily.parquet"
-    )
-    dur_backfill = time.perf_counter() - t0
-    results.append(
-        StageResult(
-            stage_name="4. Silver 180d Backfill",
-            status="SUCCESS",
-            metrics=f"{len(backfill_df):,} Zone-Days (10 Zones)",
-            duration_sec=dur_backfill,
-            output_path=str((SILVER_DIR / "dengue_zones_daily.parquet").relative_to(REPO_ROOT)),
+            output_path=_rel_path(s_dir),
         )
     )
 
     return results
 
 
-def run_gold_pipeline() -> list[StageResult]:
-    """Execute Gold DuckDB spatiotemporal lag engine."""
-    results: list[StageResult] = []
-
+def run_export_snapshot(snapshot_path: Path | None = None) -> list[StageResult]:
+    """Export real API state into frontend fallback static JSON snapshot."""
     t0 = time.perf_counter()
-    engine = DuckDBLagEngine(
-        silver_dir=SILVER_DIR,
-        gold_dir=GOLD_DIR,
-    )
-    daily_df, lags_df = engine.build_gold_tables(save_parquet=True)
-    optimal_lag = engine.get_optimal_lag(zone_name="National")
-    dur_gold = time.perf_counter() - t0
+    from cleanpulse.api.main import build_snapshot_payload
 
-    results.append(
-        StageResult(
-            stage_name="5. Gold DuckDB Lag Engine",
-            status="SUCCESS",
-            metrics=f"{len(lags_df)} Correlations (Peak Day {optimal_lag})",
-            duration_sec=dur_gold,
-            output_path=str(GOLD_DIR.relative_to(REPO_ROOT)),
-        )
-    )
+    target = snapshot_path or FRONTEND_SNAPSHOT_PATH
+    payload = build_snapshot_payload()
 
-    return results
+    target.parent.mkdir(parents=True, exist_ok=True)
+    import json
 
-
-def run_export_snapshot() -> list[StageResult]:
-    """Export API state into frontend fallback static JSON snapshot."""
-    results: list[StageResult] = []
-
-    t0 = time.perf_counter()
-    # Lazy import to ensure database connection initializes after gold tables exist
-    from cleanpulse.api.main import (
-        get_audit_anomalies,
-        get_db,
-        get_pipeline_health,
-        get_surveillance_lags,
-        get_surveillance_summary,
-    )
-    from cleanpulse.gold.lag_engine import GOLD_ZONES_LIST
-
-    # Refresh in-memory database tables
-    get_db()
-
-    summary = get_surveillance_summary()
-    audit = get_audit_anomalies(severity="ALL", anomaly_type="ALL")
-    health = get_pipeline_health()
-
-    lags_by_zone: dict[str, Any] = {}
-    for zone in GOLD_ZONES_LIST:
-        lags_by_zone[zone] = get_surveillance_lags(zone=zone, lag_days=14)
-
-    payload = {
-        "metadata": {
-            "source": "DGHS-CleanPulse DuckDB In-Memory Engine",
-            "snapshot_version": "1.0.0",
-            "extracted_at": health["timestamp"],
-        },
-        "surveillance_summary": summary,
-        "lags_by_zone": lags_by_zone,
-        "audit_anomalies": audit,
-        "pipeline_health": health,
-    }
-
-    FRONTEND_SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with FRONTEND_SNAPSHOT_PATH.open("w", encoding="utf-8") as f:
+    with target.open("w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
 
     dur_snap = time.perf_counter() - t0
-    size_kb = FRONTEND_SNAPSHOT_PATH.stat().st_size / 1024.0
+    size_kb = target.stat().st_size / 1024.0
 
-    results.append(
+    return [
         StageResult(
-            stage_name="6. Frontend Static Cache",
+            stage_name="4. Frontend Static Snapshot",
             status="SUCCESS",
-            metrics=f"{size_kb:.1f} KB JSON Snapshot",
+            metrics=f"{size_kb:.1f} KB Real JSON Snapshot",
             duration_sec=dur_snap,
-            output_path=str(FRONTEND_SNAPSHOT_PATH.relative_to(REPO_ROOT)),
+            output_path=_rel_path(target),
         )
-    )
-
-    return results
+    ]
 
 
 def run_export_report(output_path: Path | None = None) -> StageResult:
@@ -257,7 +224,9 @@ def run_export_report(output_path: Path | None = None) -> StageResult:
 
     anomalies_parquet = SILVER_DIR / "audit_anomalies.parquet"
     if not anomalies_parquet.exists():
-        raise FileNotFoundError(f"Missing {anomalies_parquet}")
+        raise FileNotFoundError(
+            f"Missing {anomalies_parquet}; no real DGHS anomaly audit data ingested yet."
+        )
 
     import duckdb
 
@@ -283,19 +252,12 @@ def run_export_report(output_path: Path | None = None) -> StageResult:
 
     target_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     dur = time.perf_counter() - t0
-    logger.info("Exported markdown anomaly report to %s (%d records)", target_path, len(rows))
-
-    try:
-        out_str = str(target_path.relative_to(REPO_ROOT))
-    except ValueError:
-        out_str = str(target_path)
-
     return StageResult(
-        stage_name="7. Anomaly Audit Report",
+        stage_name="5. Anomaly Audit Report",
         status="SUCCESS",
         metrics=f"{len(rows)} Intercepted Anomalies",
         duration_sec=dur,
-        output_path=out_str,
+        output_path=_rel_path(target_path),
     )
 
 
@@ -335,18 +297,37 @@ def build_parser() -> argparse.ArgumentParser:
     p_bronze.add_argument(
         "--offline",
         action="store_true",
-        help="Use deterministic offline fixtures instead of live HTTP",
+        help="Use synthetic DGHS fixture (must not write to data/)",
+    )
+    p_bronze.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Optional output directory (required outside data/ for --offline)",
     )
 
-    # 2. run-silver
-    subparsers.add_parser("run-silver", help="Run Pandera firewall & 180-day backfill")
+    # 2. ingest-weather
+    subparsers.add_parser(
+        "ingest-weather",
+        help="Fetch live Open-Meteo batches into immutable Bronze storage",
+    )
 
-    # 3. build-gold
-    subparsers.add_parser("build-gold", help="Materialize DuckDB spatiotemporal lag tables")
+    # 3. build-silver & run-silver
+    for cmd_name in ("build-silver", "run-silver"):
+        p_silver = subparsers.add_parser(
+            cmd_name,
+            help="Build Silver tables from archived Bronze files",
+        )
+        p_silver.add_argument(
+            "--weather-only",
+            action="store_true",
+            help="Build Silver weather table only (skips DGHS firewall while DGHS is down)",
+        )
 
     # 4. export-snapshot
     subparsers.add_parser(
-        "export-snapshot", help="Generate frontend/public/data/fallback_snapshot.json"
+        "export-snapshot",
+        help="Generate frontend/public/data/fallback_snapshot.json from real data",
     )
 
     # 5. export-report
@@ -358,11 +339,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # 6. run-all
-    p_all = subparsers.add_parser("run-all", help="Execute complete Medallion pipeline end-to-end")
-    p_all.add_argument(
-        "--offline",
-        action="store_true",
-        help="Use deterministic offline fixtures instead of live HTTP",
+    subparsers.add_parser(
+        "run-all",
+        help="Execute complete live Medallion pipeline (fails loudly if DGHS fails)",
     )
 
     return parser
@@ -387,19 +366,21 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if args.subcommand == "scrape-bronze":
-            all_results = run_scrape_bronze(offline=args.offline)
-        elif args.subcommand == "run-silver":
-            all_results = run_silver_pipeline()
-        elif args.subcommand == "build-gold":
-            all_results = run_gold_pipeline()
+            all_results = run_scrape_bronze(
+                offline=args.offline,
+                offline_output_dir=args.output_dir,
+            )
+        elif args.subcommand == "ingest-weather":
+            all_results = run_ingest_weather()
+        elif args.subcommand in ("build-silver", "run-silver"):
+            all_results = run_silver_pipeline(weather_only=args.weather_only)
         elif args.subcommand == "export-snapshot":
             all_results = run_export_snapshot()
         elif args.subcommand == "export-report":
             all_results.append(run_export_report(Path(args.output)))
         elif args.subcommand == "run-all":
-            all_results.extend(run_scrape_bronze(offline=args.offline))
-            all_results.extend(run_silver_pipeline())
-            all_results.extend(run_gold_pipeline())
+            all_results.extend(run_scrape_bronze(offline=False))
+            all_results.extend(run_silver_pipeline(weather_only=False))
             all_results.extend(run_export_snapshot())
             all_results.append(run_export_report())
         else:
@@ -412,7 +393,7 @@ def main(argv: list[str] | None = None) -> int:
 
     except Exception as exc:
         logger.exception("Pipeline execution failed: %s", exc)
-        print(f"\n❌ Error during execution: {exc}\n", file=sys.stderr)
+        print(f"\nError during execution: {exc}\n", file=sys.stderr)
         return 1
 
 

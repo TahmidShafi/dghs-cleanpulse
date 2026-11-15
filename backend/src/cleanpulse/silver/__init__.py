@@ -19,11 +19,6 @@ from cleanpulse.silver.spatial_crosswalk import (
     get_districts_for_zone,
     load_district_crosswalk,
 )
-from cleanpulse.silver.timeseries_backfill import (
-    ZONE_TARGET_ADMISSIONS,
-    ZONE_TARGET_DEATHS,
-    EpidemiologicalBackfillGenerator,
-)
 
 __all__ = [
     "AuditAnomalySchema",
@@ -35,12 +30,9 @@ __all__ = [
     "DGHSDivisionSilverSchema",
     "DistrictCrosswalkRecord",
     "DistrictCrosswalkSilverSchema",
-    "EpidemiologicalBackfillGenerator",
     "RawAuditSchema",
     "SilverPipelineResult",
     "SilverSanitizerFirewall",
-    "ZONE_TARGET_ADMISSIONS",
-    "ZONE_TARGET_DEATHS",
     "get_district_by_id",
     "get_districts_for_zone",
     "load_district_crosswalk",
