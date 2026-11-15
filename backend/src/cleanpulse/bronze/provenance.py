@@ -23,7 +23,15 @@ def get_git_provenance(repo_root: Path | None = None) -> tuple[str | None, bool 
             text=True,
         ).strip()
         status = subprocess.check_output(
-            ["git", "status", "--porcelain"],
+            [
+                "git",
+                "status",
+                "--porcelain",
+                "--",
+                ".",
+                ":(exclude)data",
+                ":(exclude)frontend/public/data",
+            ],
             cwd=cwd,
             stderr=subprocess.DEVNULL,
             text=True,

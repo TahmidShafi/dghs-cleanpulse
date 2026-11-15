@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 from cleanpulse.api.main import build_snapshot_payload
@@ -60,6 +61,7 @@ def export_synthetic_demo() -> None:
 
     demo_payload = {
         "synthetic": True,
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "fixture_path": str(DEFAULT_FIXTURE_PATH.relative_to(REPO_ROOT)).replace("\\", "/"),
         "fixture_sha256": fixture_sha256,
         "git_commit": git_commit,
