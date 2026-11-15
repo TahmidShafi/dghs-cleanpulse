@@ -3,65 +3,65 @@
 import React from "react";
 import {
   AlertTriangle,
-  Clock,
+  CloudRain,
+  Database,
   Gauge,
-  Skull,
-  Users,
 } from "lucide-react";
-import { PipelineHealthResponse, SurveillanceSummaryResponse } from "@/lib/types";
+import {
+  PipelineHealthResponse,
+  SurveillanceSummaryResponse,
+  WeatherDailyResponse,
+} from "@/lib/types";
 
 interface KpiCardsProps {
   summary: SurveillanceSummaryResponse;
+  weather: WeatherDailyResponse;
   health: PipelineHealthResponse;
 }
 
-export function KpiCards({ summary, health }: KpiCardsProps) {
+export function KpiCards({ summary, weather, health }: KpiCardsProps) {
+  const hasRealDengue = summary.status === "available" && summary.data !== null;
+
   const cards = [
     {
-      id: "kpi-national-admissions",
-      title: "2026 National Admissions",
-      value: summary.total_admitted.toLocaleString(),
-      subtext: `Across 10 DGHS Reporting Zones • Report ${summary.report_date}`,
-      icon: Users,
+      id: "kpi-dengue-status",
+      title: "DGHS Dengue Series",
+      value: hasRealDengue && summary.data
+        ? summary.data.total_admitted.toLocaleString()
+        : "Pending",
+      subtext: hasRealDengue
+        ? `Real DGHS report ${summary.data?.report_date}`
+        : "No real DGHS series ingested yet (HTTP 404)",
+      icon: Database,
+      accent: "from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-400",
+      badge: hasRealDengue ? "Live DGHS" : "Pending Source",
+      badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+    },
+    {
+      id: "kpi-weather-coverage",
+      title: "Real Weather Coverage",
+      value: `${weather.district_count} Districts`,
+      subtext: `${health.layer_counts.silver_weather_rows.toLocaleString()} Open-Meteo Archive rows (${weather.start_date} to ${weather.end_date})`,
+      icon: CloudRain,
       accent: "from-blue-500/20 to-teal-500/10 border-blue-500/30 text-blue-400",
-      badge: "Ground Truth",
+      badge: "Open-Meteo Real",
       badgeColor: "bg-blue-500/20 text-blue-300 border-blue-500/40",
     },
     {
-      id: "kpi-deaths-cfr",
-      title: "Cumulative Deaths & CFR",
-      value: summary.total_deaths.toLocaleString(),
-      subtext: `${summary.cfr_pct}% Case Fatality Rate (${summary.total_discharged.toLocaleString()} discharged)`,
-      icon: Skull,
-      accent: "from-rose-500/20 to-red-500/10 border-rose-500/30 text-rose-400",
-      badge: `${summary.cfr_pct}% CFR`,
-      badgeColor: "bg-rose-500/20 text-rose-300 border-rose-500/40",
-    },
-    {
-      id: "kpi-optimal-lag",
-      title: "Optimal Monsoon Lag Peak",
-      value: `${summary.optimal_lag_days} Days`,
-      subtext: "Pearson r = 0.8102 Humidity Correlation (14–18d Window)",
-      icon: Clock,
-      accent: "from-purple-500/20 to-indigo-500/10 border-purple-500/30 text-purple-400",
-      badge: "Biological Incubation",
-      badgeColor: "bg-purple-500/20 text-purple-300 border-purple-500/40",
-    },
-    {
-      id: "kpi-bugs-intercepted",
-      title: "Upstream DGHS Bugs Intercepted",
-      value: `${summary.anomalies_caught_count} Anomalies`,
-      subtext: "4 CRITICAL • 2 WARNING • Zero Silent Data Dropping",
+      id: "kpi-real-anomalies",
+      title: "Real DGHS Anomalies",
+      value: `${health.layer_counts.silver_anomaly_rows}`,
+      subtext: "Tab 1 shows synthetic fault-injection demo only",
       icon: AlertTriangle,
-      accent: "from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-400",
+      accent: "from-slate-500/20 to-slate-700/10 border-slate-600/40 text-slate-300",
       badge: "Pandera Firewall",
-      badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+      badgeColor: "bg-slate-700/60 text-slate-300 border-slate-600",
     },
     {
       id: "kpi-duckdb-latency",
       title: "DuckDB Query Latency",
       value: `${health.duckdb_latency_ms.toFixed(2)} ms`,
-      subtext: `${health.layer_counts.gold_daily_rows.toLocaleString()} Gold Rows • In-Memory Columnar Speed`,
+      subtext: `${health.layer_counts.bronze_snapshots} Bronze files • In-Memory Engine`,
       icon: Gauge,
       accent: "from-emerald-500/20 to-teal-500/10 border-emerald-500/30 text-emerald-400",
       badge: "In-Memory Engine",
@@ -70,7 +70,7 @@ export function KpiCards({ summary, health }: KpiCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
       {cards.map((card) => {
         const IconComponent = card.icon;
         return (

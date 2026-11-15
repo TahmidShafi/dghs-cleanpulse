@@ -13,11 +13,13 @@ import { AgeCohortItem, AuditAnomaliesResponse } from "@/lib/types";
 interface FirewallInspectorProps {
   anomaliesData: AuditAnomaliesResponse;
   ageGroups: AgeCohortItem[];
+  fixtureSha256?: string;
 }
 
 export function FirewallInspector({
   anomaliesData,
   ageGroups,
+  fixtureSha256,
 }: FirewallInspectorProps) {
   const [severityFilter, setSeverityFilter] = useState<string>("ALL");
   const [typeFilter, setTypeFilter] = useState<string>("ALL");
@@ -34,7 +36,29 @@ export function FirewallInspector({
 
   return (
     <div className="space-y-8">
-      {/* 1. Header Banner & Recruiter Hook */}
+      {/* 1. Permanent Synthetic Demo Banner */}
+      <div
+        id="synthetic-demo-banner"
+        className="rounded-xl p-4 bg-amber-950/50 border border-amber-500/50 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+      >
+        <div className="text-xs sm:text-sm font-medium">
+          <strong className="text-amber-300 uppercase tracking-wide mr-2">
+            Synthetic Fault-Injection Demo:
+          </strong>
+          This tab demonstrates the Pandera firewall on hand-authored test input (
+          <code className="font-mono text-amber-100">
+            synthetic_dghs_fault_injection.html
+          </code>
+          ), <strong>not</strong> real DGHS surveillance data.
+        </div>
+        {fixtureSha256 && (
+          <span className="text-[11px] font-mono text-amber-300/90 shrink-0">
+            SHA-256: {fixtureSha256.slice(0, 16)}…
+          </span>
+        )}
+      </div>
+
+      {/* 2. Header Banner */}
       <div className="rounded-2xl p-6 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 shadow-xl relative overflow-hidden">
         <div className="absolute right-0 top-0 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl pointer-events-none"></div>
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
@@ -44,28 +68,27 @@ export function FirewallInspector({
                 Pandera Validation Engine
               </span>
               <span className="text-xs text-slate-400">
-                Zero Silent Data Dropping Policy
+                Zero Silent Data Dropping Policy (Synthetic Test Oracle)
               </span>
             </div>
             <h2 className="text-xl font-bold text-slate-100 tracking-tight">
-              Upstream Government Data Firewall & Audit Quarantine
+              Validation Demo (Synthetic Fault-Injection Input)
             </h2>
             <p className="text-sm text-slate-300 max-w-3xl mt-1">
-              Every day, raw DGHS Excel dashboard uploads inject corrupt serial date numbers, unnormalized
-              zero-padding, and cross-column arithmetic sum errors into official health surveillance tables. CleanPulse detects, quarantines, and deterministically reconciles each flaw.
+              Demonstrates how CleanPulse detects, quarantines, and deterministically reconciles injected spreadsheet faults (Excel serial date numbers, zero-padding drift, and cross-column sum mismatches) on controlled test input.
             </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
               <span className="text-xs text-slate-400 block">Critical Traps</span>
               <span className="text-lg font-bold font-mono text-rose-400">
-                {anomaliesData.severity_counts["CRITICAL"] || 4}
+                {anomaliesData.severity_counts["CRITICAL"] || 0}
               </span>
             </div>
             <div className="px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
               <span className="text-xs text-slate-400 block">Warnings Reconciled</span>
               <span className="text-lg font-bold font-mono text-amber-400">
-                {anomaliesData.severity_counts["WARNING"] || 2}
+                {anomaliesData.severity_counts["WARNING"] || 0}
               </span>
             </div>
             <div className="px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-center">

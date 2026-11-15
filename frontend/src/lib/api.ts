@@ -1,10 +1,11 @@
 /**
  * DGHS-CleanPulse Hybrid Client Data Fetcher
  *
- * Implements a Zero-Cold-Start hybrid architecture:
  * 1. Tries live FastAPI + DuckDB backend at NEXT_PUBLIC_API_URL or http://localhost:8000.
- * 2. Uses an aggressive 1500ms AbortController timeout.
- * 3. Gracefully and seamlessly falls back to /data/fallback_snapshot.json if backend is offline.
+ * 2. Falls back to /data/fallback_snapshot.json if backend is offline, and surfaces
+ *    the snapshot's generated_at_utc in the Header.
+ * 3. Loads /data/demo_synthetic_fault_injection.json for the clearly labelled Tab 1
+ *    synthetic validation demo (never mixed into real data/).
  */
 
 import {
@@ -12,16 +13,21 @@ import {
   DashboardState,
   FallbackSnapshotData,
   PipelineHealthResponse,
-  SurveillanceLagsResponse,
   SurveillanceSummaryResponse,
+  SyntheticDemoData,
+  WeatherDailyResponse,
 } from "./types";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 let cachedFallbackSnapshot: FallbackSnapshotData | null = null;
+let cachedSyntheticDemo: SyntheticDemoData | null = null;
 
-async function fetchWithTimeout(url: string, timeoutMs = 1500): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  timeoutMs = 1500
+): Promise<Response> {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -42,7 +48,6 @@ export async function getFallbackSnapshot(): Promise<FallbackSnapshotData> {
     return cachedFallbackSnapshot;
   }
 
-  // Attempt to fetch static snapshot from public folder
   const res = await fetch("/data/fallback_snapshot.json", { cache: "default" });
   if (!res.ok) {
     throw new Error(`Failed to load fallback snapshot: HTTP ${res.status}`);
@@ -52,96 +57,108 @@ export async function getFallbackSnapshot(): Promise<FallbackSnapshotData> {
   return data;
 }
 
-export async function fetchInitialDashboardData(): Promise<DashboardState> {
+export async function getSyntheticDemoData(): Promise<SyntheticDemoData | null> {
+  if (cachedSyntheticDemo) {
+    return cachedSyntheticDemo;
+  }
   try {
-    const [summaryRes, lagsRes, anomaliesRes, healthRes] = await Promise.all([
+    const res = await fetch("/data/demo_synthetic_fault_injection.json", {
+      cache: "default",
+    });
+    if (!res.ok) {
+      return null;
+    }
+    const data = (await res.json()) as SyntheticDemoData;
+    cachedSyntheticDemo = data;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchInitialDashboardData(): Promise<DashboardState> {
+  const syntheticDemo = await getSyntheticDemoData();
+
+  try {
+    const [summaryRes, weatherRes, anomaliesRes, healthRes] = await Promise.all([
       fetchWithTimeout(`${API_BASE_URL}/v1/surveillance/summary`),
-      fetchWithTimeout(`${API_BASE_URL}/v1/surveillance/lags?zone=National&lag_days=14`),
-      fetchWithTimeout(`${API_BASE_URL}/v1/audit/anomalies?severity=ALL&anomaly_type=ALL`),
+      fetchWithTimeout(`${API_BASE_URL}/v1/weather/daily?zone=National`),
+      fetchWithTimeout(
+        `${API_BASE_URL}/v1/audit/anomalies?severity=ALL&anomaly_type=ALL`
+      ),
       fetchWithTimeout(`${API_BASE_URL}/v1/health/pipeline`),
     ]);
 
-    if (!summaryRes.ok || !lagsRes.ok || !anomaliesRes.ok || !healthRes.ok) {
+    if (!summaryRes.ok || !weatherRes.ok || !anomaliesRes.ok || !healthRes.ok) {
       throw new Error("One or more backend endpoints returned non-200");
     }
 
     const summary: SurveillanceSummaryResponse = await summaryRes.json();
-    const lags: SurveillanceLagsResponse = await lagsRes.json();
+    const weather: WeatherDailyResponse = await weatherRes.json();
     const anomalies: AuditAnomaliesResponse = await anomaliesRes.json();
     const health: PipelineHealthResponse = await healthRes.json();
 
     return {
       summary,
-      lags,
+      weather,
       anomalies,
       health,
+      syntheticDemo,
       isLive: true,
       isFallback: false,
+      snapshotGeneratedAt: null,
       lastUpdated: new Date().toLocaleTimeString(),
     };
   } catch (err) {
-    console.warn("FastAPI backend unreachable or cold; engaging zero-cold-start static fallback mode:", err);
+    console.warn(
+      "FastAPI backend unreachable; falling back to static snapshot:",
+      err
+    );
     const snapshot = await getFallbackSnapshot();
 
     return {
       summary: snapshot.surveillance_summary,
-      lags: snapshot.lags_by_zone["National"] || Object.values(snapshot.lags_by_zone)[0],
+      weather:
+        snapshot.weather_by_zone["National"] ||
+        Object.values(snapshot.weather_by_zone)[0],
       anomalies: snapshot.audit_anomalies,
       health: snapshot.pipeline_health,
+      syntheticDemo,
       isLive: false,
       isFallback: true,
+      snapshotGeneratedAt:
+        snapshot.metadata.generated_at_utc || snapshot.metadata.extracted_at,
       lastUpdated: new Date().toLocaleTimeString(),
     };
   }
 }
 
-export async function fetchZoneLagData(
+export async function fetchZoneWeatherData(
   zone: string,
-  lagDays: number,
-  isLiveMode = true
-): Promise<SurveillanceLagsResponse> {
-  if (isLiveMode) {
+  isLive: boolean
+): Promise<WeatherDailyResponse> {
+  if (isLive) {
     try {
-      const url = `${API_BASE_URL}/v1/surveillance/lags?zone=${encodeURIComponent(
-        zone
-      )}&lag_days=${lagDays}`;
-      const res = await fetchWithTimeout(url, 2000);
+      const res = await fetchWithTimeout(
+        `${API_BASE_URL}/v1/weather/daily?zone=${encodeURIComponent(zone)}`
+      );
       if (res.ok) {
-        return (await res.json()) as SurveillanceLagsResponse;
+        return (await res.json()) as WeatherDailyResponse;
       }
-    } catch (e) {
-      console.warn("Live lag query failed; using fallback slice:", e);
+    } catch (err) {
+      console.warn(
+        "Live weather query failed, falling back to static snapshot:",
+        err
+      );
     }
   }
 
-  // Fallback mode computation
   const snapshot = await getFallbackSnapshot();
-  const zoneData = snapshot.lags_by_zone[zone] || snapshot.lags_by_zone["National"];
-
-  if (!zoneData) {
-    throw new Error(`Zone ${zone} not found in fallback snapshot`);
+  if (snapshot.weather_by_zone[zone]) {
+    return snapshot.weather_by_zone[zone];
   }
-
-  // Dynamically shift series if lagDays differs
-  const baseSeries = zoneData.aligned_time_series;
-  const shiftedSeries = baseSeries.map((item, idx) => {
-    const shiftIdx = idx - (lagDays - zoneData.selected_lag_days);
-    const src = shiftIdx >= 0 && shiftIdx < baseSeries.length ? baseSeries[shiftIdx] : null;
-
-    return {
-      date: item.date,
-      daily_admitted: item.daily_admitted,
-      daily_deaths: item.daily_deaths,
-      total_admitted: item.total_admitted,
-      lagged_precip_mm: src ? src.lagged_precip_mm : null,
-      lagged_humidity_pct: src ? src.lagged_humidity_pct : null,
-      lagged_temp_c: src ? src.lagged_temp_c : null,
-    };
-  });
-
-  return {
-    ...zoneData,
-    selected_lag_days: lagDays,
-    aligned_time_series: shiftedSeries,
-  };
+  return (
+    snapshot.weather_by_zone["National"] ||
+    Object.values(snapshot.weather_by_zone)[0]
+  );
 }

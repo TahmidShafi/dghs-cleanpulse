@@ -6,6 +6,7 @@ import { Activity, Database, RefreshCw, ShieldCheck, Zap } from "lucide-react";
 interface HeaderProps {
   isLive: boolean;
   isFallback: boolean;
+  snapshotGeneratedAt: string | null;
   lastUpdated: string;
   isRefreshing: boolean;
   onRefresh: () => void;
@@ -14,6 +15,7 @@ interface HeaderProps {
 export function Header({
   isLive,
   isFallback,
+  snapshotGeneratedAt,
   lastUpdated,
   isRefreshing,
   onRefresh,
@@ -32,18 +34,17 @@ export function Header({
                 DGHS-CleanPulse
               </h1>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-teal-400 border border-slate-700">
-                v1.0 Medallion
+                Phase 1 • Honesty Pass
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Bangladesh Dengue Surveillance & Monsoon Climate Lag Analytics Engine
+              Bangladesh Dengue Surveillance Firewall &amp; Open-Meteo Climate Archive
             </p>
           </div>
         </div>
 
-        {/* Pipeline Badges & Telemetry Status */}
+        {/* Pipeline Badges & Explicit Data Source Label */}
         <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          {/* Medallion Pipeline Flow */}
           <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
             <span className="flex items-center gap-1 text-amber-400 font-mono text-[11px]">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Bronze
@@ -54,17 +55,16 @@ export function Header({
             </span>
             <span className="text-slate-600">→</span>
             <span className="flex items-center gap-1 text-emerald-400 font-mono text-[11px]">
-              <Database className="w-3 h-3" /> Gold DuckDB
+              <Database className="w-3 h-3" /> DuckDB
             </span>
           </div>
 
-          {/* Connection Mode Pill */}
           <div
             id="connection-status-pill"
             title={
               isFallback
-                ? "Operating in zero-cold-start static fallback mode"
-                : "Connected to live FastAPI + DuckDB engine"
+                ? `Static snapshot generated ${snapshotGeneratedAt ?? "unknown"}`
+                : "Connected to Live FastAPI + DuckDB API"
             }
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
               isLive
@@ -78,17 +78,18 @@ export function Header({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
-                <span>Live FastAPI + DuckDB Connected</span>
+                <span>Live API</span>
               </>
             ) : (
               <>
                 <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span>Static Gold Snapshot Mode (Zero Cold-Start)</span>
+                <span>
+                  Static snapshot generated {snapshotGeneratedAt ?? "unknown"}
+                </span>
               </>
             )}
           </div>
 
-          {/* Refresh Action */}
           <button
             onClick={onRefresh}
             disabled={isRefreshing}
