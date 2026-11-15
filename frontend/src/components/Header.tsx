@@ -1,107 +1,99 @@
 "use client";
 
 import React from "react";
-import { Activity, Database, RefreshCw, ShieldCheck, Zap } from "lucide-react";
+import { Activity, RefreshCw } from "lucide-react";
 
 interface HeaderProps {
   isLive: boolean;
   isFallback: boolean;
   snapshotGeneratedAt: string | null;
+  snapshotGitCommit: string | null;
   lastUpdated: string;
   isRefreshing: boolean;
   onRefresh: () => void;
+}
+
+function formatUtcTimestamp(iso: string | null): string {
+  if (!iso) return "unknown";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "unknown";
+  const day = d.getUTCDate();
+  const month = d.toLocaleString("en-GB", { month: "short", timeZone: "UTC" });
+  const year = d.getUTCFullYear();
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
+  return `${day} ${month} ${year}, ${hh}:${mm} UTC`;
 }
 
 export function Header({
   isLive,
   isFallback,
   snapshotGeneratedAt,
+  snapshotGitCommit,
   lastUpdated,
   isRefreshing,
   onRefresh,
 }: HeaderProps) {
+  const sourceLabel = isLive
+    ? "Live API"
+    : `Snapshot · ${formatUtcTimestamp(snapshotGeneratedAt)}`;
+
+  const sourceTooltip = isFallback
+    ? `Static snapshot generated ${snapshotGeneratedAt ?? "unknown"}${
+        snapshotGitCommit ? ` (commit ${snapshotGitCommit})` : ""
+      }`
+    : `Connected to Live FastAPI + DuckDB API (updated ${lastUpdated})`;
+
   return (
-    <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur-md sticky top-0 z-50 px-4 lg:px-8 py-3.5">
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        {/* Brand & Subtitle */}
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center shadow-lg shadow-teal-500/20 text-slate-950 font-bold">
-            <Activity className="w-5 h-5" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-slate-100">
+    <header className="border-b border-subtle bg-canvas sticky top-0 z-50 px-4 lg:px-8 py-3">
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+        {/* Title + Subtitle on line 1, Source label wraps to line 2 on <640px */}
+        <div className="min-w-0 flex-1 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 sm:gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-surface border border-subtle flex items-center justify-center text-accent-text shrink-0">
+              <Activity className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold tracking-tight text-primary">
                 DGHS-CleanPulse
               </h1>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-teal-400 border border-slate-700">
-                Phase 1 • Honesty Pass
-              </span>
+              <p className="hidden sm:block text-xs text-secondary">
+                Bangladesh dengue surveillance firewall and Open-Meteo ERA5 archive
+              </p>
             </div>
-            <p className="text-xs text-slate-400">
-              Bangladesh Dengue Surveillance Firewall &amp; Open-Meteo Climate Archive
-            </p>
-          </div>
-        </div>
-
-        {/* Pipeline Badges & Explicit Data Source Label */}
-        <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          <div className="hidden md:flex items-center gap-1.5 text-xs text-slate-400 bg-slate-900/90 px-3 py-1.5 rounded-lg border border-slate-800">
-            <span className="flex items-center gap-1 text-amber-400 font-mono text-[11px]">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Bronze
-            </span>
-            <span className="text-slate-600">→</span>
-            <span className="flex items-center gap-1 text-teal-400 font-mono text-[11px]">
-              <ShieldCheck className="w-3 h-3" /> Silver Pandera
-            </span>
-            <span className="text-slate-600">→</span>
-            <span className="flex items-center gap-1 text-emerald-400 font-mono text-[11px]">
-              <Database className="w-3 h-3" /> DuckDB
-            </span>
           </div>
 
           <div
             id="connection-status-pill"
-            title={
-              isFallback
-                ? `Static snapshot generated ${snapshotGeneratedAt ?? "unknown"}`
-                : "Connected to Live FastAPI + DuckDB API"
-            }
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+            title={sourceTooltip}
+            className={`inline-flex items-center gap-2 self-start sm:self-auto px-2.5 py-1 rounded-md text-xs font-medium border ${
               isLive
-                ? "bg-emerald-950/60 text-emerald-300 border-emerald-800/80"
-                : "bg-amber-950/60 text-amber-300 border-amber-800/80"
+                ? "bg-surface text-accent-text border-accent/40"
+                : "bg-surface text-secondary border-subtle"
             }`}
           >
-            {isLive ? (
-              <>
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                </span>
-                <span>Live API</span>
-              </>
-            ) : (
-              <>
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
-                <span>
-                  Static snapshot generated {snapshotGeneratedAt ?? "unknown"}
-                </span>
-              </>
-            )}
-          </div>
-
-          <button
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer disabled:opacity-50"
-            title={`Last updated: ${lastUpdated}`}
-          >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-teal-400" : ""}`}
+            <span
+              className={`inline-block h-1.5 w-1.5 rounded-full shrink-0 ${
+                isLive ? "bg-accent" : "bg-warning"
+              }`}
             />
-            <span className="hidden sm:inline">Refresh</span>
-          </button>
+            <span className="font-mono tabular-nums">{sourceLabel}</span>
+          </div>
         </div>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          aria-label="Refresh dashboard data"
+          title={`Refresh data (last updated ${lastUpdated})`}
+          className="inline-flex items-center justify-center gap-1.5 min-w-[44px] min-h-[44px] px-2.5 sm:px-3 rounded-lg text-xs font-medium bg-surface hover:bg-elevated text-primary border border-subtle hover:border-hover transition-colors cursor-pointer disabled:opacity-50 shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          <RefreshCw
+            className={`w-4 h-4 ${isRefreshing ? "animate-spin text-accent-text" : "text-secondary"}`}
+          />
+          <span className="hidden sm:inline">Refresh</span>
+        </button>
       </div>
     </header>
   );

@@ -107,6 +107,7 @@ export async function fetchInitialDashboardData(): Promise<DashboardState> {
       isLive: true,
       isFallback: false,
       snapshotGeneratedAt: null,
+      snapshotGitCommit: null,
       lastUpdated: new Date().toLocaleTimeString(),
     };
   } catch (err) {
@@ -128,6 +129,7 @@ export async function fetchInitialDashboardData(): Promise<DashboardState> {
       isFallback: true,
       snapshotGeneratedAt:
         snapshot.metadata.generated_at_utc || snapshot.metadata.extracted_at,
+      snapshotGitCommit: snapshot.metadata.git_commit ?? null,
       lastUpdated: new Date().toLocaleTimeString(),
     };
   }

@@ -10,7 +10,7 @@ import {
   fetchZoneWeatherData,
 } from "@/lib/api";
 import { DashboardState, WeatherDailyResponse } from "@/lib/types";
-import { CloudRain, Database, ShieldCheck } from "lucide-react";
+import { CloudRain, ShieldCheck } from "lucide-react";
 
 export default function Home() {
   const [dashboard, setDashboard] = useState<DashboardState | null>(null);
@@ -78,12 +78,29 @@ export default function Home() {
 
   if (isLoading || !dashboard) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-slate-100">
-        <div className="w-12 h-12 rounded-xl bg-teal-500/20 border border-teal-500/40 flex items-center justify-center animate-pulse mb-4">
-          <Database className="w-6 h-6 text-teal-400" />
+      <div
+        aria-busy="true"
+        aria-label="Loading dashboard"
+        className="min-h-screen bg-canvas text-primary flex flex-col"
+      >
+        <div className="border-b border-subtle px-4 lg:px-8 py-3">
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="h-8 w-48 rounded-md bg-surface animate-pulse" />
+            <div className="h-9 w-28 rounded-md bg-surface animate-pulse" />
+          </div>
         </div>
-        <h2 className="text-lg font-bold">Initializing DGHS-CleanPulse Console...</h2>
-        <p className="text-xs text-slate-400 mt-1">Connecting to DuckDB Engine &amp; Pandera Firewall</p>
+        <main className="max-w-7xl mx-auto w-full px-4 lg:px-8 py-6 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className="h-28 rounded-lg bg-surface border border-subtle animate-pulse"
+              />
+            ))}
+          </div>
+          <div className="h-11 w-72 rounded-md bg-surface animate-pulse" />
+          <div className="h-64 rounded-lg bg-surface border border-subtle animate-pulse" />
+        </main>
       </div>
     );
   }
@@ -92,11 +109,12 @@ export default function Home() {
   const demoAgeGroups = dashboard.syntheticDemo?.age_groups ?? [];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+    <div className="min-h-screen bg-canvas text-primary flex flex-col font-sans">
       <Header
         isLive={dashboard.isLive}
         isFallback={dashboard.isFallback}
         snapshotGeneratedAt={dashboard.snapshotGeneratedAt}
+        snapshotGitCommit={dashboard.snapshotGitCommit}
         lastUpdated={dashboard.lastUpdated}
         isRefreshing={isRefreshing}
         onRefresh={() => loadData(true)}
@@ -109,42 +127,49 @@ export default function Home() {
           health={dashboard.health}
         />
 
-        <div className="flex border-b border-slate-800 gap-2 pt-2">
+        <div
+          role="tablist"
+          aria-label="Dashboard views"
+          className="flex items-center border-b border-subtle gap-1 overflow-x-auto whitespace-nowrap"
+        >
           <button
             id="tab-firewall"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "firewall"}
             onClick={() => setActiveTab("firewall")}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition cursor-pointer ${
+            className={`inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
               activeTab === "firewall"
-                ? "border-teal-400 text-teal-300 bg-teal-500/5 rounded-t-lg"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-accent text-accent-text"
+                : "border-transparent text-secondary hover:text-primary"
             }`}
           >
-            <ShieldCheck className="w-4 h-4 text-teal-400" />
-            <span>Validation demo (synthetic fault-injection input)</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-              Synthetic Demo
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>Validation demo</span>
+            <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-warning-subtle text-warning border border-warning/40">
+              Synthetic
             </span>
           </button>
 
           <button
             id="tab-lags"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "lags"}
             onClick={() => setActiveTab("lags")}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-bold border-b-2 transition cursor-pointer ${
+            className={`inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
               activeTab === "lags"
-                ? "border-blue-400 text-blue-300 bg-blue-500/5 rounded-t-lg"
-                : "border-transparent text-slate-400 hover:text-slate-200"
+                ? "border-accent text-accent-text"
+                : "border-transparent text-secondary hover:text-primary"
             }`}
           >
-            <CloudRain className="w-4 h-4 text-blue-400" />
-            <span>Real Weather Explorer (Dengue Pending)</span>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
-              64 Districts
-            </span>
+            <CloudRain className="w-4 h-4 shrink-0" />
+            <span>Weather explorer</span>
           </button>
         </div>
 
         {activeTab === "firewall" && (
-          <div id="content-tab-firewall">
+          <div id="content-tab-firewall" className="animate-fade-in">
             <FirewallInspector
               anomaliesData={demoAnomalies}
               ageGroups={demoAgeGroups}
@@ -154,7 +179,7 @@ export default function Home() {
         )}
 
         {activeTab === "lags" && weatherData && (
-          <div id="content-tab-lags">
+          <div id="content-tab-lags" className="animate-fade-in">
             <LagExplorer
               currentZone={currentZone}
               weatherData={weatherData}
@@ -165,17 +190,38 @@ export default function Home() {
         )}
       </main>
 
-      <footer className="border-t border-slate-900 bg-slate-950/80 px-4 lg:px-8 py-5 text-xs text-slate-500 mt-12">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 font-mono">
-          <div>
-            DGHS-CleanPulse • Pandera Validation Firewall &amp; Open-Meteo Climate Archive
+      <footer className="border-t border-subtle bg-canvas px-4 lg:px-8 py-5 text-xs text-secondary mt-10">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-primary font-medium">DGHS-CleanPulse</span>
+            <span>·</span>
+            <a
+              href="https://github.com/TahmidShafi/dghs-cleanpulse"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+            >
+              Source on GitHub
+            </a>
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Immutable Bronze</span>
-            <span>•</span>
-            <span>Silver Pandera Firewall</span>
-            <span>•</span>
-            <span>DuckDB Engine</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <a
+              href="https://open-meteo.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+            >
+              Weather data by Open-Meteo.com
+            </a>
+            <span>·</span>
+            <a
+              href="https://creativecommons.org/licenses/by/4.0/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-text hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+            >
+              CC BY 4.0
+            </a>
           </div>
         </div>
       </footer>

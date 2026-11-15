@@ -1,12 +1,7 @@
 "use client";
 
 import React from "react";
-import {
-  AlertTriangle,
-  CloudRain,
-  Database,
-  Gauge,
-} from "lucide-react";
+import { AlertTriangle, CloudRain, Database, FileArchive } from "lucide-react";
 import {
   PipelineHealthResponse,
   SurveillanceSummaryResponse,
@@ -25,47 +20,40 @@ export function KpiCards({ summary, weather, health }: KpiCardsProps) {
   const cards = [
     {
       id: "kpi-dengue-status",
-      title: "DGHS Dengue Series",
-      value: hasRealDengue && summary.data
-        ? summary.data.total_admitted.toLocaleString()
-        : "Pending",
+      title: "DGHS dengue series",
+      value:
+        hasRealDengue && summary.data
+          ? summary.data.total_admitted.toLocaleString()
+          : "Pending",
       subtext: hasRealDengue
         ? `Real DGHS report ${summary.data?.report_date}`
         : "No real DGHS series ingested yet (HTTP 404)",
       icon: Database,
-      accent: "from-amber-500/20 to-orange-500/10 border-amber-500/30 text-amber-400",
-      badge: hasRealDengue ? "Live DGHS" : "Pending Source",
-      badgeColor: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+      badge: hasRealDengue ? "Live" : "Pending",
     },
     {
       id: "kpi-weather-coverage",
-      title: "Real Weather Coverage",
-      value: `${weather.district_count} Districts`,
-      subtext: `${health.layer_counts.silver_weather_rows.toLocaleString()} Open-Meteo Archive rows (${weather.start_date} to ${weather.end_date})`,
+      title: "Weather coverage",
+      value: `${weather.district_count} districts`,
+      subtext: `${health.layer_counts.silver_weather_rows.toLocaleString()} Open-Meteo ERA5 rows (${weather.start_date} to ${weather.end_date})`,
       icon: CloudRain,
-      accent: "from-blue-500/20 to-teal-500/10 border-blue-500/30 text-blue-400",
-      badge: "Open-Meteo Real",
-      badgeColor: "bg-blue-500/20 text-blue-300 border-blue-500/40",
+      badge: null,
     },
     {
       id: "kpi-real-anomalies",
-      title: "Real DGHS Anomalies",
+      title: "DGHS anomalies",
       value: `${health.layer_counts.silver_anomaly_rows}`,
-      subtext: "Tab 1 shows synthetic fault-injection demo only",
+      subtext: "Validation demo tab uses synthetic test input only",
       icon: AlertTriangle,
-      accent: "from-slate-500/20 to-slate-700/10 border-slate-600/40 text-slate-300",
-      badge: "Pandera Firewall",
-      badgeColor: "bg-slate-700/60 text-slate-300 border-slate-600",
+      badge: null,
     },
     {
-      id: "kpi-duckdb-latency",
-      title: "DuckDB Query Latency",
-      value: `${health.duckdb_latency_ms.toFixed(2)} ms`,
-      subtext: `${health.layer_counts.bronze_snapshots} Bronze files • In-Memory Engine`,
-      icon: Gauge,
-      accent: "from-emerald-500/20 to-teal-500/10 border-emerald-500/30 text-emerald-400",
-      badge: "In-Memory Engine",
-      badgeColor: "bg-emerald-500/20 text-emerald-300 border-emerald-500/40",
+      id: "kpi-bronze-files",
+      title: "Bronze files",
+      value: `${health.layer_counts.bronze_snapshots}`,
+      subtext: "each with a SHA-256 provenance sidecar",
+      icon: FileArchive,
+      badge: null,
     },
   ];
 
@@ -77,28 +65,32 @@ export function KpiCards({ summary, weather, health }: KpiCardsProps) {
           <div
             key={card.id}
             id={card.id}
-            className={`relative rounded-xl p-4 bg-gradient-to-br ${card.accent} bg-slate-900/90 border shadow-md transition hover:border-slate-600 flex flex-col justify-between`}
+            className="animate-fade-in rounded-lg p-4 bg-surface border border-subtle hover:border-hover transition-colors flex flex-col justify-between gap-3"
           >
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-xs font-medium text-secondary">
                   {card.title}
                 </span>
-                <span
-                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${card.badgeColor}`}
-                >
-                  {card.badge}
-                </span>
+                {card.badge && (
+                  <span
+                    className={`text-xs font-medium px-2 py-0.5 rounded border ${
+                      hasRealDengue
+                        ? "bg-elevated text-accent-text border-accent/40"
+                        : "bg-warning-subtle text-warning border-warning/40"
+                    }`}
+                  >
+                    {card.badge}
+                  </span>
+                )}
               </div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold font-mono tracking-tight text-slate-100">
-                  {card.value}
-                </span>
+              <div className="text-2xl font-semibold font-mono tabular-nums tracking-tight text-primary">
+                {card.value}
               </div>
             </div>
-            <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-              <span className="truncate pr-2">{card.subtext}</span>
-              <IconComponent className="w-4 h-4 shrink-0 opacity-80" />
+            <div className="pt-2.5 border-t border-subtle flex items-start justify-between gap-2 text-xs text-secondary">
+              <span className="leading-relaxed">{card.subtext}</span>
+              <IconComponent className="w-4 h-4 shrink-0 mt-0.5 text-secondary" />
             </div>
           </div>
         );

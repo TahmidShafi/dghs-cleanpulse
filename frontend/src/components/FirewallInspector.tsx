@@ -1,13 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import {
-  CheckCircle2,
-  FileCode,
-  Filter,
-  Layers,
-  Sparkles,
-} from "lucide-react";
+import { CheckCircle2, FileCode, Filter, Layers } from "lucide-react";
 import { AgeCohortItem, AuditAnomaliesResponse } from "@/lib/types";
 
 interface FirewallInspectorProps {
@@ -27,73 +21,73 @@ export function FirewallInspector({
   const filteredAnomalies = anomaliesData.anomalies.filter((item) => {
     const matchesSev =
       severityFilter === "ALL" || item.severity === severityFilter;
-    const matchesType = typeFilter === "ALL" || item.anomaly_type === typeFilter;
+    const matchesType =
+      typeFilter === "ALL" || item.anomaly_type === typeFilter;
     return matchesSev && matchesType;
   });
 
-  // Calculate max cases for chart scaling
   const maxCases = Math.max(...ageGroups.map((g) => g.reconciled_total), 1);
+  const typeCount = Object.keys(anomaliesData.type_counts).length;
 
   return (
     <div className="space-y-8">
-      {/* 1. Permanent Synthetic Demo Banner */}
+      {/* 1. Calm Synthetic Demo Notice */}
       <div
         id="synthetic-demo-banner"
-        className="rounded-xl p-4 bg-amber-950/50 border border-amber-500/50 text-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+        className="rounded-lg p-4 bg-surface border border-subtle border-l-2 border-l-warning flex flex-col sm:flex-row sm:items-center justify-between gap-2"
       >
-        <div className="text-xs sm:text-sm font-medium">
-          <strong className="text-amber-300 uppercase tracking-wide mr-2">
-            Synthetic Fault-Injection Demo:
-          </strong>
+        <div className="text-sm text-secondary leading-relaxed">
+          <span className="text-primary font-medium mr-1.5">
+            Synthetic fault-injection demo:
+          </span>
           This tab demonstrates the Pandera firewall on hand-authored test input (
-          <code className="font-mono text-amber-100">
+          <code className="font-mono text-primary">
             synthetic_dghs_fault_injection.html
           </code>
-          ), <strong>not</strong> real DGHS surveillance data.
+          ), not real DGHS surveillance data.
         </div>
         {fixtureSha256 && (
-          <span className="text-[11px] font-mono text-amber-300/90 shrink-0">
+          <span
+            title={`Full fixture SHA-256: ${fixtureSha256}`}
+            className="text-xs font-mono tabular-nums text-secondary shrink-0"
+          >
             SHA-256: {fixtureSha256.slice(0, 16)}…
           </span>
         )}
       </div>
 
-      {/* 2. Header Banner */}
-      <div className="rounded-2xl p-6 bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 shadow-xl relative overflow-hidden">
-        <div className="absolute right-0 top-0 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                Pandera Validation Engine
-              </span>
-              <span className="text-xs text-slate-400">
-                Zero Silent Data Dropping Policy (Synthetic Test Oracle)
-              </span>
-            </div>
-            <h2 className="text-xl font-bold text-slate-100 tracking-tight">
-              Validation Demo (Synthetic Fault-Injection Input)
+      {/* 2. Summary Header */}
+      <div className="rounded-lg p-5 bg-surface border border-subtle">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-secondary">
+              Zero-silent-data-drop validation policy
+            </p>
+            <h2 className="text-lg font-semibold text-primary tracking-tight">
+              Validation demo
             </h2>
-            <p className="text-sm text-slate-300 max-w-3xl mt-1">
+            <p className="text-sm text-secondary max-w-3xl leading-relaxed">
               Demonstrates how CleanPulse detects, quarantines, and deterministically reconciles injected spreadsheet faults (Excel serial date numbers, zero-padding drift, and cross-column sum mismatches) on controlled test input.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
-              <span className="text-xs text-slate-400 block">Critical Traps</span>
-              <span className="text-lg font-bold font-mono text-rose-400">
+          <div className="grid grid-cols-3 gap-3 shrink-0">
+            <div className="px-3.5 py-2.5 rounded-lg bg-canvas border border-subtle text-center">
+              <span className="text-xs text-secondary block">Quarantined</span>
+              <span className="text-lg font-semibold font-mono tabular-nums text-critical">
                 {anomaliesData.severity_counts["CRITICAL"] || 0}
               </span>
             </div>
-            <div className="px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
-              <span className="text-xs text-slate-400 block">Warnings Reconciled</span>
-              <span className="text-lg font-bold font-mono text-amber-400">
+            <div className="px-3.5 py-2.5 rounded-lg bg-canvas border border-subtle text-center">
+              <span className="text-xs text-secondary block">
+                Warnings reconciled
+              </span>
+              <span className="text-lg font-semibold font-mono tabular-nums text-warning">
                 {anomaliesData.severity_counts["WARNING"] || 0}
               </span>
             </div>
-            <div className="px-3.5 py-2 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
-              <span className="text-xs text-slate-400 block">Valid Cohorts</span>
-              <span className="text-lg font-bold font-mono text-emerald-400">
+            <div className="px-3.5 py-2.5 rounded-lg bg-canvas border border-subtle text-center">
+              <span className="text-xs text-secondary block">Valid cohorts</span>
+              <span className="text-lg font-semibold font-mono tabular-nums text-primary">
                 {ageGroups.length}
               </span>
             </div>
@@ -101,309 +95,194 @@ export function FirewallInspector({
         </div>
       </div>
 
-      {/* 2. Side-by-Side "Bronze Raw HTML vs Silver Sanitized Parquet" Diff Cards */}
+      {/* 3. Bronze HTML vs. Silver Parquet Quarantine Diffs (derived from JSON) */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
           <div className="flex items-center gap-2">
-            <Layers className="w-5 h-5 text-teal-400" />
-            <h3 className="text-base font-bold text-slate-100">
-              Bronze HTML vs. Silver Parquet Quarantine Diffs
+            <Layers className="w-4 h-4 text-accent-text shrink-0" />
+            <h3 className="text-base font-semibold text-primary">
+              Bronze HTML vs. Silver Parquet quarantine diffs
             </h3>
           </div>
-          <span className="text-xs text-slate-400">
-            5 Upstream Government Edge Cases Intercepted
+          <span className="text-xs text-secondary">
+            {anomaliesData.total_anomalies} injected faults across {typeCount}{" "}
+            types (synthetic test input)
           </span>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Diff 1: Excel Serial Date 42309 */}
-          <div className="rounded-xl p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono font-bold text-rose-400 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30">
-                  EXCEL_SERIAL_DATE_CAST
-                </span>
-                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">
-                  CRITICAL
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mb-3">
-                Excel auto-formatted date integer <code className="text-rose-300 bg-slate-800 px-1 py-0.5 rounded">42309</code> injected into age group table.
-              </p>
-              <div className="space-y-2 text-xs font-mono">
-                <div className="p-2 rounded bg-rose-950/40 border border-rose-900/50 text-rose-300 flex items-center justify-between">
-                  <span>- Raw Bronze:</span>
-                  <span className="font-bold">&quot;42309&quot; (63 cases)</span>
+          {anomaliesData.anomalies.map((anom) => (
+            <div
+              key={anom.anomaly_id}
+              className="rounded-lg p-4 bg-surface border border-subtle hover:border-hover transition-colors flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-2.5">
+                  <span className="text-xs font-mono font-medium text-primary">
+                    {anom.anomaly_type}
+                  </span>
+                  <span
+                    className={`text-xs font-mono px-1.5 py-0.5 rounded ${
+                      anom.severity === "CRITICAL"
+                        ? "bg-critical-subtle text-critical border border-critical/40"
+                        : "bg-warning-subtle text-warning border border-warning/40"
+                    }`}
+                  >
+                    {anom.severity}
+                  </span>
                 </div>
-                <div className="p-2 rounded bg-emerald-950/40 border border-emerald-900/50 text-emerald-300 flex items-center justify-between">
-                  <span>+ Silver Clean:</span>
-                  <span className="font-bold">2015-11-01 (QUARANTINED)</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 pt-2 text-[11px] text-slate-400 border-t border-slate-800/80">
-              Decoded via <code className="text-teal-300">1899-12-30 + 42309 days</code>
-            </div>
-          </div>
-
-          {/* Diff 2: Excel Serial Date 46301 */}
-          <div className="rounded-xl p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono font-bold text-rose-400 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30">
-                  EXCEL_SERIAL_DATE_CAST
-                </span>
-                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">
-                  CRITICAL
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mb-3">
-                Excel date integer <code className="text-rose-300 bg-slate-800 px-1 py-0.5 rounded">46301</code> representing future date in age table.
-              </p>
-              <div className="space-y-2 text-xs font-mono">
-                <div className="p-2 rounded bg-rose-950/40 border border-rose-900/50 text-rose-300 flex items-center justify-between">
-                  <span>- Raw Bronze:</span>
-                  <span className="font-bold">&quot;46301&quot; (67 cases)</span>
-                </div>
-                <div className="p-2 rounded bg-emerald-950/40 border border-emerald-900/50 text-emerald-300 flex items-center justify-between">
-                  <span>+ Silver Clean:</span>
-                  <span className="font-bold">2026-10-06 (QUARANTINED)</span>
+                <p className="text-xs text-secondary mb-3 leading-relaxed">
+                  {anom.explanation}
+                </p>
+                <div className="space-y-2 text-xs font-mono">
+                  <div className="p-2 rounded bg-canvas border border-subtle text-secondary flex flex-col gap-0.5">
+                    <span>- Raw Bronze ({anom.row_key}):</span>
+                    <span className="text-primary break-words">
+                      {anom.raw_value}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded bg-canvas border border-subtle text-secondary flex flex-col gap-0.5">
+                    <span>+ Silver Clean:</span>
+                    <span className="text-primary break-words">
+                      {anom.repaired_value}
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="mt-3 pt-2 text-[11px] text-slate-400 border-t border-slate-800/80">
-              Decoded via <code className="text-teal-300">1899-12-30 + 46301 days</code>
-            </div>
-          </div>
-
-          {/* Diff 3: Zero-Pad Drift 6-10 -> 06-10 */}
-          <div className="rounded-xl p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono font-bold text-amber-400 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30">
-                  ZERO_PAD_DRIFT
-                </span>
-                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                  WARNING
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mb-3">
-                Unnormalized variant <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">6-10</code> (1 case) coexisting with standard <code className="text-teal-300 bg-slate-800 px-1 py-0.5 rounded">06-10</code> (5,316 cases).
-              </p>
-              <div className="space-y-2 text-xs font-mono">
-                <div className="p-2 rounded bg-amber-950/40 border border-amber-900/50 text-amber-300 flex items-center justify-between">
-                  <span>- Raw Bronze:</span>
-                  <span className="font-bold">2 duplicate rows (1 + 5316)</span>
-                </div>
-                <div className="p-2 rounded bg-emerald-950/40 border border-emerald-900/50 text-emerald-300 flex items-center justify-between">
-                  <span>+ Silver Clean:</span>
-                  <span className="font-bold">&quot;06-10&quot;: 5,317 total</span>
-                </div>
+              <div className="mt-3 pt-2.5 text-xs font-mono text-secondary border-t border-subtle flex items-center justify-between">
+                <span>{anom.anomaly_id}</span>
+                <span>{anom.table_name}</span>
               </div>
             </div>
-            <div className="mt-3 pt-2 text-[11px] text-slate-400 border-t border-slate-800/80">
-              Absorbed +1 male case without dropping surveillance data
-            </div>
-          </div>
-
-          {/* Diff 4: Arithmetic Sum Mismatch row 21-25 */}
-          <div className="rounded-xl p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono font-bold text-rose-400 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30">
-                  GENDER_SUM_MISMATCH
-                </span>
-                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">
-                  CRITICAL
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mb-3">
-                Arithmetic mismatch in cohort <code className="text-teal-300 bg-slate-800 px-1 py-0.5 rounded">21-25</code>: Reported total fails <code className="text-slate-400">M + F</code> check.
-              </p>
-              <div className="space-y-2 text-xs font-mono">
-                <div className="p-2 rounded bg-rose-950/40 border border-rose-900/50 text-rose-300 flex items-center justify-between">
-                  <span>- Reported:</span>
-                  <span className="font-bold">3,005 + 2,375 = 5,390</span>
-                </div>
-                <div className="p-2 rounded bg-emerald-950/40 border border-emerald-900/50 text-emerald-300 flex items-center justify-between">
-                  <span>+ Reconciled:</span>
-                  <span className="font-bold">5,380 (delta = +10)</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 pt-2 text-[11px] text-slate-400 border-t border-slate-800/80">
-              Reconciled sum logged with explicit <code className="text-teal-300">arithmetic_delta = 10</code>
-            </div>
-          </div>
-
-          {/* Diff 5: Invalid Buckets 0-10 & "" */}
-          <div className="rounded-xl p-4 bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between">
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-mono font-bold text-amber-400 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/30">
-                  INVALID_AGE_BUCKET
-                </span>
-                <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                  WARNING
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 mb-3">
-                Non-standard cohort label <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">&quot;0-10&quot;</code> and empty string bucket <code className="text-amber-300 bg-slate-800 px-1 py-0.5 rounded">&quot;&quot;</code>.
-              </p>
-              <div className="space-y-2 text-xs font-mono">
-                <div className="p-2 rounded bg-amber-950/40 border border-amber-900/50 text-amber-300 flex items-center justify-between">
-                  <span>- Raw Bronze:</span>
-                  <span className="font-bold">&quot;0-10&quot; (1) &amp; &quot;&quot; (7)</span>
-                </div>
-                <div className="p-2 rounded bg-emerald-950/40 border border-emerald-900/50 text-emerald-300 flex items-center justify-between">
-                  <span>+ Silver Clean:</span>
-                  <span className="font-bold">QUARANTINED_INVALID</span>
-                </div>
-              </div>
-            </div>
-            <div className="mt-3 pt-2 text-[11px] text-slate-400 border-t border-slate-800/80">
-              Quarantined to maintain canonical 5-year cohort schema
-            </div>
-          </div>
-
-          {/* Diff 6: 100% Pipeline Verification Badge */}
-          <div className="rounded-xl p-4 bg-gradient-to-br from-teal-950/30 to-emerald-950/30 border border-teal-800/50 flex flex-col justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-5 h-5 text-teal-400" />
-                <span className="text-xs font-bold text-teal-300 uppercase tracking-wider">
-                  Audit Integrity
-                </span>
-              </div>
-              <h4 className="text-sm font-bold text-slate-100 mb-2">
-                Zero Lost Patients Guarantee
-              </h4>
-              <p className="text-xs text-slate-400">
-                Rather than silently discarding broken rows via <code className="text-rose-400">df.dropna()</code>, CleanPulse captures all upstream government errors into <code className="text-teal-300">audit_anomalies.parquet</code> for automated pipeline health inspection.
-              </p>
-            </div>
-            <div className="mt-3 pt-2 flex items-center gap-2 text-xs font-mono text-emerald-400 border-t border-teal-900/50">
-              <CheckCircle2 className="w-4 h-4" />
-              <span>All 6 Anomalies Accounted For</span>
-            </div>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* 3. Interactive Anomaly Audit Table */}
+      {/* 4. Interactive Anomaly Audit Table */}
       <section className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <FileCode className="w-5 h-5 text-teal-400" />
-            <h3 className="text-base font-bold text-slate-100">
-              Structured Audit Anomaly Log (`audit_anomalies.parquet`)
+            <FileCode className="w-4 h-4 text-accent-text shrink-0" />
+            <h3 className="text-base font-semibold text-primary">
+              Structured audit anomaly log (synthetic demo data)
             </h3>
           </div>
 
           {/* Filter Pills */}
           <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-slate-400 flex items-center gap-1 mr-1">
+            <span className="text-secondary flex items-center gap-1 mr-1">
               <Filter className="w-3.5 h-3.5" /> Severity:
             </span>
             {["ALL", "CRITICAL", "WARNING"].map((sev) => (
               <button
                 key={sev}
                 id={`filter-severity-${sev.toLowerCase()}`}
+                type="button"
+                aria-pressed={severityFilter === sev}
                 onClick={() => setSeverityFilter(sev)}
-                className={`px-2.5 py-1 rounded-md font-mono transition cursor-pointer ${
+                className={`min-h-[36px] px-2.5 py-1 rounded-md font-mono transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                   severityFilter === sev
-                    ? "bg-teal-500 text-slate-950 font-bold"
-                    : "bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700"
+                    ? "bg-accent-strong text-white font-medium"
+                    : "bg-surface text-secondary hover:text-primary border border-subtle hover:border-hover"
                 }`}
               >
-                {sev}
+                {sev === "ALL" ? "All" : sev}
               </button>
             ))}
 
-            <span className="text-slate-400 flex items-center gap-1 ml-2 mr-1">
-              Type:
-            </span>
-            {["ALL", "EXCEL_SERIAL_DATE_CAST", "ZERO_PAD_DRIFT", "GENDER_SUM_MISMATCH", "INVALID_AGE_BUCKET"].map(
-              (t) => (
-                <button
-                  key={t}
-                  id={`filter-type-${t.toLowerCase()}`}
-                  onClick={() => setTypeFilter(t)}
-                  className={`px-2.5 py-1 rounded-md font-mono transition cursor-pointer text-[11px] ${
-                    typeFilter === t
-                      ? "bg-teal-500 text-slate-950 font-bold"
-                      : "bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700"
-                  }`}
-                >
-                  {t === "EXCEL_SERIAL_DATE_CAST"
-                    ? "Excel Date"
-                    : t === "ZERO_PAD_DRIFT"
-                    ? "Zero-Pad"
-                    : t === "GENDER_SUM_MISMATCH"
-                    ? "Sum Mismatch"
-                    : t === "INVALID_AGE_BUCKET"
-                    ? "Invalid Bucket"
-                    : "All"}
-                </button>
-              )
-            )}
+            <span className="text-secondary ml-1 mr-1">Type:</span>
+            {[
+              "ALL",
+              "EXCEL_SERIAL_DATE_CAST",
+              "ZERO_PAD_DRIFT",
+              "GENDER_SUM_MISMATCH",
+              "INVALID_AGE_BUCKET",
+            ].map((t) => (
+              <button
+                key={t}
+                id={`filter-type-${t.toLowerCase()}`}
+                type="button"
+                aria-pressed={typeFilter === t}
+                onClick={() => setTypeFilter(t)}
+                className={`min-h-[36px] px-2.5 py-1 rounded-md font-sans transition-colors cursor-pointer text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                  typeFilter === t
+                    ? "bg-accent-strong text-white font-medium"
+                    : "bg-surface text-secondary hover:text-primary border border-subtle hover:border-hover"
+                }`}
+              >
+                {t === "EXCEL_SERIAL_DATE_CAST"
+                  ? "Excel date"
+                  : t === "ZERO_PAD_DRIFT"
+                  ? "Zero-pad"
+                  : t === "GENDER_SUM_MISMATCH"
+                  ? "Sum mismatch"
+                  : t === "INVALID_AGE_BUCKET"
+                  ? "Invalid bucket"
+                  : "All"}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Audit Table */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden shadow-lg">
+        <div className="rounded-lg border border-subtle bg-surface overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase tracking-wider text-[11px]">
+              <thead className="bg-canvas text-secondary border-b border-subtle font-sans font-medium">
                 <tr>
                   <th className="px-4 py-3">Anomaly ID</th>
                   <th className="px-4 py-3">Severity</th>
                   <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Row Key</th>
-                  <th className="px-4 py-3">Raw Value</th>
-                  <th className="px-4 py-3">Repaired / Quarantined</th>
+                  <th className="px-4 py-3">Row key</th>
+                  <th className="px-4 py-3">Raw value</th>
+                  <th className="px-4 py-3">Repaired / quarantined</th>
                   <th className="px-4 py-3">Explanation</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300">
+              <tbody className="divide-y divide-subtle text-primary">
                 {filteredAnomalies.length > 0 ? (
                   filteredAnomalies.map((anom) => (
                     <tr
                       key={anom.anomaly_id}
-                      className="hover:bg-slate-800/50 transition-colors"
+                      className="hover:bg-elevated/40 transition-colors"
                     >
-                      <td className="px-4 py-3 text-teal-400 font-bold">
+                      <td className="px-4 py-3 text-accent-text font-medium whitespace-nowrap">
                         {anom.anomaly_id}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${
                             anom.severity === "CRITICAL"
-                              ? "bg-rose-950 text-rose-300 border border-rose-800"
-                              : "bg-amber-950 text-amber-300 border border-amber-800"
+                              ? "bg-critical-subtle text-critical border border-critical/40"
+                              : "bg-warning-subtle text-warning border border-warning/40"
                           }`}
                         >
                           {anom.severity}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-slate-200">
+                      <td className="px-4 py-3 text-primary whitespace-nowrap">
                         {anom.anomaly_type}
                       </td>
-                      <td className="px-4 py-3 text-slate-400">{anom.row_key}</td>
-                      <td className="px-4 py-3 text-rose-300 bg-rose-950/20">
+                      <td className="px-4 py-3 text-secondary whitespace-nowrap">
+                        {anom.row_key}
+                      </td>
+                      <td className="px-4 py-3 text-secondary">
                         {anom.raw_value}
                       </td>
-                      <td className="px-4 py-3 text-emerald-300 bg-emerald-950/20 font-semibold">
+                      <td className="px-4 py-3 text-primary font-medium">
                         {anom.repaired_value}
                       </td>
-                      <td className="px-4 py-3 text-slate-300 max-w-xs truncate" title={anom.explanation}>
+                      <td className="px-4 py-3 font-sans text-secondary min-w-[220px] leading-relaxed">
                         {anom.explanation}
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-slate-500">
+                    <td
+                      colSpan={7}
+                      className="px-4 py-8 text-center font-sans text-secondary"
+                    >
                       No anomalies matching selected filters.
                     </td>
                   </tr>
@@ -414,24 +293,27 @@ export function FirewallInspector({
         </div>
       </section>
 
-      {/* 4. Sanitized 17-Cohort Age Distribution View */}
+      {/* 5. Sanitized Age Cohorts View */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-base font-bold text-slate-100">
-              Sanitized 17-Cohort Age Distribution (`dengue_age_groups.parquet`)
+            <CheckCircle2 className="w-4 h-4 text-accent-text shrink-0" />
+            <h3 className="text-base font-semibold text-primary">
+              Sanitized age cohorts (synthetic demo data)
             </h3>
           </div>
-          <span className="text-xs text-slate-400">
-            Reconciled Ground Truth • Row 21-25 highlights <span className="text-amber-400 font-bold">+10 arithmetic_delta</span>
+          <span className="text-xs text-secondary">
+            Row 21-25 highlights{" "}
+            <span className="font-mono text-warning font-medium">
+              +10 arithmetic_delta
+            </span>
           </span>
         </div>
 
         {/* Visual Bar Breakdown Chart */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 p-5 shadow-lg">
-          <h4 className="text-xs font-semibold text-slate-400 mb-4 uppercase tracking-wider">
-            Case Frequency Distribution by Age Cohort (Male vs. Female vs. Total)
+        <div className="rounded-lg border border-subtle bg-surface p-5">
+          <h4 className="text-xs font-medium text-secondary mb-4">
+            Case frequency distribution by age cohort (male vs. female vs. total)
           </h4>
           <div className="space-y-2.5">
             {ageGroups.map((cohort) => {
@@ -439,30 +321,43 @@ export function FirewallInspector({
               const isDiscrepant = cohort.arithmetic_delta !== 0;
 
               return (
-                <div key={cohort.age_group} className="flex items-center gap-3 text-xs">
-                  <div className="w-14 font-mono font-bold text-slate-300 text-right shrink-0">
+                <div
+                  key={cohort.age_group}
+                  className="flex items-center gap-3 text-xs"
+                >
+                  <div className="w-14 font-mono tabular-nums font-medium text-primary text-right shrink-0">
                     {cohort.age_group}
                   </div>
-                  <div className="flex-1 bg-slate-950 rounded-full h-5 overflow-hidden flex items-center p-0.5 border border-slate-800 relative">
-                    {/* Male bar segment */}
+                  <div className="flex-1 bg-canvas rounded-full h-4 overflow-hidden flex items-center p-0.5 border border-subtle relative">
                     <div
-                      style={{ width: `${(cohort.male_cases / Math.max(cohort.reconciled_total, 1)) * totalPct}%` }}
-                      className="bg-blue-500/80 h-full rounded-l-full transition-all"
+                      style={{
+                        width: `${
+                          (cohort.male_cases /
+                            Math.max(cohort.reconciled_total, 1)) *
+                          totalPct
+                        }%`,
+                      }}
+                      className="bg-accent h-full rounded-l-full animate-bar-grow-x"
                       title={`Male: ${cohort.male_cases.toLocaleString()}`}
-                    ></div>
-                    {/* Female bar segment */}
+                    />
                     <div
-                      style={{ width: `${(cohort.female_cases / Math.max(cohort.reconciled_total, 1)) * totalPct}%` }}
-                      className="bg-rose-500/80 h-full rounded-r-full transition-all"
+                      style={{
+                        width: `${
+                          (cohort.female_cases /
+                            Math.max(cohort.reconciled_total, 1)) *
+                          totalPct
+                        }%`,
+                      }}
+                      className="bg-muted-line h-full rounded-r-full animate-bar-grow-x"
                       title={`Female: ${cohort.female_cases.toLocaleString()}`}
-                    ></div>
+                    />
                     {isDiscrepant && (
-                      <span className="absolute right-2 text-[10px] font-mono font-bold text-amber-400">
+                      <span className="absolute right-2 text-xs font-mono tabular-nums font-medium text-warning">
                         Δ +{cohort.arithmetic_delta}
                       </span>
                     )}
                   </div>
-                  <div className="w-24 text-right font-mono text-slate-300 shrink-0">
+                  <div className="w-20 text-right font-mono tabular-nums text-primary shrink-0">
                     {cohort.reconciled_total.toLocaleString()}
                   </div>
                 </div>
@@ -470,74 +365,78 @@ export function FirewallInspector({
             })}
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-            <div className="flex items-center gap-4">
+          <div className="mt-4 pt-3 border-t border-subtle flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-secondary">
+            <div className="flex flex-wrap items-center gap-4">
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-blue-500"></span> Male Cases
+                <span className="w-3 h-3 rounded-sm bg-accent" /> Male cases
               </span>
               <span className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-sm bg-rose-500"></span> Female Cases
+                <span className="w-3 h-3 rounded-sm bg-muted-line" /> Female cases
               </span>
-              <span className="flex items-center gap-1.5 text-amber-400">
-                <span className="w-2 h-2 rounded-full bg-amber-400"></span> Arithmetic Delta Row
+              <span className="flex items-center gap-1.5 text-warning">
+                <span className="w-2 h-2 rounded-full bg-warning" /> Arithmetic
+                delta row
               </span>
             </div>
-            <span className="text-[11px] font-mono">
-              Total Cohort Sum: {ageGroups.reduce((acc, c) => acc + c.reconciled_total, 0).toLocaleString()}
+            <span className="text-xs font-mono tabular-nums text-primary">
+              Total cohort sum:{" "}
+              {ageGroups
+                .reduce((acc, c) => acc + c.reconciled_total, 0)
+                .toLocaleString()}
             </span>
           </div>
         </div>
 
         {/* Detailed Cohort Table */}
-        <div className="rounded-xl border border-slate-800 bg-slate-900/90 overflow-hidden shadow-lg">
+        <div className="rounded-lg border border-subtle bg-surface overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs font-mono">
-              <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 uppercase tracking-wider text-[11px]">
+            <table className="w-full text-left text-xs font-mono tabular-nums">
+              <thead className="bg-canvas text-secondary border-b border-subtle font-sans font-medium">
                 <tr>
-                  <th className="px-4 py-3">Age Cohort</th>
-                  <th className="px-4 py-3 text-right">Male Cases</th>
-                  <th className="px-4 py-3 text-right">Female Cases</th>
-                  <th className="px-4 py-3 text-right">Reported Total</th>
-                  <th className="px-4 py-3 text-right">Reconciled Total</th>
-                  <th className="px-4 py-3 text-right">Arithmetic Delta</th>
+                  <th className="px-4 py-3">Age cohort</th>
+                  <th className="px-4 py-3 text-right">Male cases</th>
+                  <th className="px-4 py-3 text-right">Female cases</th>
+                  <th className="px-4 py-3 text-right">Reported total</th>
+                  <th className="px-4 py-3 text-right">Reconciled total</th>
+                  <th className="px-4 py-3 text-right">Arithmetic delta</th>
                   <th className="px-4 py-3 text-right">Deaths</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-300">
+              <tbody className="divide-y divide-subtle text-primary">
                 {ageGroups.map((cohort) => {
                   const isDelta = cohort.arithmetic_delta !== 0;
                   return (
                     <tr
                       key={cohort.age_group}
-                      className={`hover:bg-slate-800/50 transition-colors ${
-                        isDelta ? "bg-amber-950/20 font-bold" : ""
+                      className={`hover:bg-elevated/40 transition-colors ${
+                        isDelta ? "bg-warning-subtle font-medium" : ""
                       }`}
                     >
-                      <td className="px-4 py-2.5 text-slate-200">
+                      <td className="px-4 py-2.5 text-primary">
                         {cohort.age_group}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-blue-400">
+                      <td className="px-4 py-2.5 text-right text-accent-text">
                         {cohort.male_cases.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-rose-400">
+                      <td className="px-4 py-2.5 text-right text-muted-line">
                         {cohort.female_cases.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-slate-400">
+                      <td className="px-4 py-2.5 text-right text-secondary">
                         {cohort.reported_total.toLocaleString()}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-emerald-400">
+                      <td className="px-4 py-2.5 text-right text-primary font-medium">
                         {cohort.reconciled_total.toLocaleString()}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         {isDelta ? (
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                          <span className="px-2 py-0.5 rounded bg-warning-subtle text-warning border border-warning/40">
                             +{cohort.arithmetic_delta}
                           </span>
                         ) : (
-                          <span className="text-slate-500">0</span>
+                          <span className="text-secondary">0</span>
                         )}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-slate-400">
+                      <td className="px-4 py-2.5 text-right text-secondary">
                         {cohort.deaths.toLocaleString()}
                       </td>
                     </tr>

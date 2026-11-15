@@ -130,5 +130,6 @@ export interface DashboardState {
   isLive: boolean;
   isFallback: boolean;
   snapshotGeneratedAt: string | null;
+  snapshotGitCommit: string | null;
   lastUpdated: string;
 }
