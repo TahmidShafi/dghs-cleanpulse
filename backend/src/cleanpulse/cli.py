@@ -12,6 +12,7 @@ Provides command-line subcommands to execute and verify individual Medallion lay
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 import time
@@ -28,6 +29,7 @@ from cleanpulse.silver.dengue_secondary import (
 )
 from cleanpulse.silver.firewall import SilverSanitizerFirewall
 from cleanpulse.silver.reconcile import run_reconciliation
+from cleanpulse.silver.weather_division import build_weather_divisions_daily
 
 logger = logging.getLogger("cleanpulse.cli")
 
@@ -57,10 +59,35 @@ def _rel_path(path: Path) -> str:
         return str(path)
 
 
-def _find_latest_weather_bronze_batches(weather_bronze_dir: Path) -> list[Path]:
-    """Return raw JSON batch paths from the most recent date directory in Bronze weather."""
+def _find_weather_bronze_batches(
+    weather_bronze_dir: Path,
+    start_date: str | None = None,
+    end_date: str | None = None,
+) -> list[Path]:
+    """Return raw JSON weather batch paths, optionally filtered to [start_date, end_date]."""
     if not weather_bronze_dir.exists():
         raise FileNotFoundError(f"Weather Bronze directory does not exist: {weather_bronze_dir}")
+
+    if start_date is not None and end_date is not None:
+        matched: list[Path] = []
+        for raw_p in sorted(weather_bronze_dir.rglob("*.json")):
+            if raw_p.name.endswith(".sidecar.json"):
+                continue
+            sidecar_p = raw_p.with_name(f"{raw_p.stem}.sidecar.json")
+            if not sidecar_p.exists():
+                raise FileNotFoundError(f"Missing weather sidecar: {sidecar_p}")
+            sidecar = json.loads(sidecar_p.read_text(encoding="utf-8"))
+            req_params = sidecar.get("request_params") or {}
+            b_start = str(sidecar.get("start_date") or req_params.get("start_date") or "")
+            b_end = str(sidecar.get("end_date") or req_params.get("end_date") or "")
+            if b_start >= start_date and b_end <= end_date:
+                matched.append(raw_p)
+        if not matched:
+            raise FileNotFoundError(
+                f"No Bronze weather batches within {start_date}..{end_date} in {weather_bronze_dir}"
+            )
+        return matched
+
     date_dirs = sorted(p for p in weather_bronze_dir.iterdir() if p.is_dir())
     if not date_dirs:
         raise FileNotFoundError(
@@ -75,12 +102,20 @@ def _find_latest_weather_bronze_batches(weather_bronze_dir: Path) -> list[Path]:
     return batch_files
 
 
-def run_ingest_weather(bronze_weather_dir: Path | None = None) -> list[StageResult]:
+def run_ingest_weather(
+    start_date: str,
+    end_date: str,
+    bronze_weather_dir: Path | None = None,
+) -> list[StageResult]:
     """Fetch live Open-Meteo climate batches into immutable Bronze storage."""
     t0 = time.perf_counter()
     target_dir = bronze_weather_dir or (BRONZE_DIR / "weather")
     weather_client = OpenMeteoWeatherClient()
-    batch_paths = weather_client.ingest_bronze_batches(bronze_dir=target_dir)
+    batch_paths = weather_client.ingest_bronze_batches(
+        start_date=start_date,
+        end_date=end_date,
+        bronze_dir=target_dir,
+    )
     dur = time.perf_counter() - t0
     return [
         StageResult(
@@ -96,6 +131,8 @@ def run_ingest_weather(bronze_weather_dir: Path | None = None) -> list[StageResu
 def run_scrape_bronze(
     offline: bool = False,
     offline_output_dir: Path | None = None,
+    weather_start_date: str | None = None,
+    weather_end_date: str | None = None,
 ) -> list[StageResult]:
     """Execute Bronze layer ingestion for DGHS dashboard and Open-Meteo weather."""
     results: list[StageResult] = []
@@ -123,8 +160,8 @@ def run_scrape_bronze(
         )
     )
 
-    if not offline:
-        results.extend(run_ingest_weather())
+    if not offline and weather_start_date is not None and weather_end_date is not None:
+        results.extend(run_ingest_weather(start_date=weather_start_date, end_date=weather_end_date))
 
     return results
 
@@ -133,6 +170,8 @@ def run_silver_pipeline(
     weather_only: bool = False,
     bronze_dir: Path | None = None,
     silver_dir: Path | None = None,
+    weather_start_date: str | None = None,
+    weather_end_date: str | None = None,
 ) -> list[StageResult]:
     """Execute Silver layer validation from immutable Bronze files."""
     results: list[StageResult] = []
@@ -141,11 +180,19 @@ def run_silver_pipeline(
 
     # 1. Weather Silver from Bronze
     t0 = time.perf_counter()
-    batch_files = _find_latest_weather_bronze_batches(b_dir / "weather")
+    batch_files = _find_weather_bronze_batches(
+        b_dir / "weather",
+        start_date=weather_start_date,
+        end_date=weather_end_date,
+    )
     weather_target = s_dir / "weather_districts_daily.parquet"
     weather_df = OpenMeteoWeatherClient().build_silver_from_bronze(
         bronze_paths=batch_files,
         output_parquet=weather_target,
+    )
+    div_weather_target = build_weather_divisions_daily(
+        districts_parquet=weather_target,
+        output_parquet=s_dir / "weather_divisions_daily.parquet",
     )
     dur_weather = time.perf_counter() - t0
     dist_count = weather_df["district_id"].nunique()
@@ -155,7 +202,7 @@ def run_silver_pipeline(
             status="SUCCESS",
             metrics=f"{len(weather_df):,} District-Days ({dist_count} Dist)",
             duration_sec=dur_weather,
-            output_path=_rel_path(weather_target),
+            output_path=_rel_path(div_weather_target),
         )
     )
 
@@ -314,9 +361,19 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     # 2. ingest-weather
-    subparsers.add_parser(
+    p_weather = subparsers.add_parser(
         "ingest-weather",
         help="Fetch live Open-Meteo batches into immutable Bronze storage",
+    )
+    p_weather.add_argument(
+        "--start",
+        required=True,
+        help="Start date YYYY-MM-DD (inclusive)",
+    )
+    p_weather.add_argument(
+        "--end",
+        required=True,
+        help="End date YYYY-MM-DD (inclusive)",
     )
 
     # 3. build-silver & run-silver
@@ -329,6 +386,16 @@ def build_parser() -> argparse.ArgumentParser:
             "--weather-only",
             action="store_true",
             help="Build Silver weather table only (skips DGHS firewall while DGHS is down)",
+        )
+        p_silver.add_argument(
+            "--start",
+            default=None,
+            help="Optional weather start date filter YYYY-MM-DD",
+        )
+        p_silver.add_argument(
+            "--end",
+            default=None,
+            help="Optional weather end date filter YYYY-MM-DD",
         )
 
     # 4. export-snapshot
@@ -402,9 +469,13 @@ def main(argv: list[str] | None = None) -> int:
                 offline_output_dir=args.output_dir,
             )
         elif args.subcommand == "ingest-weather":
-            all_results = run_ingest_weather()
+            all_results = run_ingest_weather(start_date=args.start, end_date=args.end)
         elif args.subcommand in ("build-silver", "run-silver"):
-            all_results = run_silver_pipeline(weather_only=args.weather_only)
+            all_results = run_silver_pipeline(
+                weather_only=args.weather_only,
+                weather_start_date=args.start,
+                weather_end_date=args.end,
+            )
         elif args.subcommand == "export-snapshot":
             all_results = run_export_snapshot()
         elif args.subcommand == "export-report":

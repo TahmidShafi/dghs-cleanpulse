@@ -9,17 +9,18 @@ import numpy as np
 import pandas as pd
 
 from cleanpulse.bronze.weather_client import (
-    DEFAULT_END_DATE,
-    DEFAULT_START_DATE,
     OpenMeteoWeatherClient,
     WeatherDailySilverSchema,
 )
 
+TEST_START_DATE = "2026-04-18"
+TEST_END_DATE = "2026-10-14"
+
 
 def generate_synthetic_weather(
     districts: list[dict[str, Any]],
-    start_date: str = DEFAULT_START_DATE,
-    end_date: str = DEFAULT_END_DATE,
+    start_date: str = TEST_START_DATE,
+    end_date: str = TEST_END_DATE,
     seed: int = 42,
 ) -> pd.DataFrame:
     """Generate deterministic, synthetic monsoon weather series for unit tests only."""

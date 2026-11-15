@@ -103,7 +103,7 @@ def test_cli_weather_only_pipeline_and_snapshot_in_tmp_path(
     monkeypatch.setattr(httpx, "get", mock_httpx_get)
 
     try:
-        assert main(["ingest-weather"]) == 0
+        assert main(["ingest-weather", "--start", "2026-10-12", "--end", "2026-10-14"]) == 0
         assert main(["build-silver", "--weather-only"]) == 0
         assert main(["export-snapshot"]) == 0
 

@@ -31,9 +31,6 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_BRONZE_WEATHER_DIR = REPO_ROOT / "data" / "bronze" / "weather"
 DEFAULT_SILVER_WEATHER_PARQUET = REPO_ROOT / "data" / "silver" / "weather_districts_daily.parquet"
 
-DEFAULT_START_DATE = "2026-04-18"
-DEFAULT_END_DATE = "2026-10-14"
-
 
 class WeatherFetchError(RuntimeError):
     """Raised when fetching live Open-Meteo archive data fails."""
@@ -144,6 +141,8 @@ class OpenMeteoWeatherClient:
                 return resp.content, {
                     "url": str(resp.url),
                     "models": params["models"],
+                    "start_date": start_date,
+                    "end_date": end_date,
                     "request_params": params,
                     "district_ids": [str(d["district_id"]) for d in batch_districts],
                     "http_status": resp.status_code,
@@ -169,27 +168,47 @@ class OpenMeteoWeatherClient:
             f"Failed to fetch climate batch after {self.max_retries} attempts: {last_error}"
         ) from last_error
 
+    @staticmethod
+    def _date_chunks(start_date: str, end_date: str, chunk_days: int) -> list[tuple[str, str]]:
+        """Split [start_date, end_date] into contiguous inclusive chunks."""
+        d_start = date.fromisoformat(start_date)
+        d_end = date.fromisoformat(end_date)
+        if d_end < d_start:
+            raise ValueError(f"end_date ({end_date}) must be >= start_date ({start_date})")
+        chunks: list[tuple[str, str]] = []
+        cursor = d_start
+        while cursor <= d_end:
+            chunk_end = min(cursor + timedelta(days=chunk_days - 1), d_end)
+            chunks.append((cursor.isoformat(), chunk_end.isoformat()))
+            cursor = chunk_end + timedelta(days=1)
+        return chunks
+
     def ingest_bronze_batches(
         self,
+        start_date: str,
+        end_date: str,
         crosswalk_df: pd.DataFrame | None = None,
-        start_date: str = DEFAULT_START_DATE,
-        end_date: str = DEFAULT_END_DATE,
         bronze_dir: Path | str | None = None,
+        chunk_days: int = 366,
     ) -> list[Path]:
         """Fetch all 64-district batches from Open-Meteo and save immutable Bronze files.
 
-        Fetches all batches first before writing to Bronze so a mid-run batch failure
-        does not leave partial batch sets, or raises WeatherFetchError immediately.
+        Fetches all chunks and batches first before writing to Bronze so a mid-run
+        failure does not leave partial batch sets, raising WeatherFetchError instead.
         """
         cw = crosswalk_df if crosswalk_df is not None else load_district_crosswalk()
         districts: list[dict[str, Any]] = cw.to_dict(orient="records")
         target_bronze = Path(bronze_dir) if bronze_dir is not None else DEFAULT_BRONZE_WEATHER_DIR
+        date_chunks = self._date_chunks(start_date, end_date, chunk_days)
 
         fetched_batches: list[tuple[bytes, dict[str, Any], int]] = []
-        for batch_idx, i in enumerate(range(0, len(districts), self.batch_size)):
-            batch = districts[i : i + self.batch_size]
-            raw_bytes, provenance = self._fetch_batch_raw(batch, start_date, end_date)
-            fetched_batches.append((raw_bytes, provenance, batch_idx))
+        batch_counter = 0
+        for chunk_start, chunk_end in date_chunks:
+            for i in range(0, len(districts), self.batch_size):
+                batch = districts[i : i + self.batch_size]
+                raw_bytes, provenance = self._fetch_batch_raw(batch, chunk_start, chunk_end)
+                fetched_batches.append((raw_bytes, provenance, batch_counter))
+                batch_counter += 1
 
         git_commit, git_dirty = get_git_provenance()
         saved_paths: list[Path] = []
@@ -282,6 +301,8 @@ class OpenMeteoWeatherClient:
                     )
 
         df_online = pd.DataFrame(all_records)
+        if not df_online.empty:
+            df_online = df_online.sort_values(["date", "district_id"]).reset_index(drop=True)
         df_result = WeatherDailySilverSchema.validate(df_online, lazy=True)
 
         if output_parquet is not None:
@@ -296,19 +317,21 @@ class OpenMeteoWeatherClient:
 
     def fetch_climate_data(
         self,
+        start_date: str,
+        end_date: str,
         crosswalk_df: pd.DataFrame | None = None,
-        start_date: str = DEFAULT_START_DATE,
-        end_date: str = DEFAULT_END_DATE,
         bronze_dir: Path | str | None = None,
         output_parquet: Path | str | None = DEFAULT_SILVER_WEATHER_PARQUET,
+        chunk_days: int = 366,
     ) -> pd.DataFrame:
         """Fetch live Open-Meteo batches into Bronze, then build Silver from Bronze."""
         cw = crosswalk_df if crosswalk_df is not None else load_district_crosswalk()
         bronze_paths = self.ingest_bronze_batches(
-            crosswalk_df=cw,
             start_date=start_date,
             end_date=end_date,
+            crosswalk_df=cw,
             bronze_dir=bronze_dir,
+            chunk_days=chunk_days,
         )
         return self.build_silver_from_bronze(
             bronze_paths=bronze_paths,
