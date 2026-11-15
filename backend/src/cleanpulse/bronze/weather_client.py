@@ -75,9 +75,9 @@ class OpenMeteoWeatherClient:
     def __init__(
         self,
         base_url: str = OPEN_METEO_ARCHIVE_URL,
-        timeout_seconds: float = 20.0,
+        timeout_seconds: float = 30.0,
         max_retries: int = 3,
-        batch_size: int = 16,
+        batch_size: int = 32,
     ) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
@@ -120,6 +120,21 @@ class OpenMeteoWeatherClient:
                     params=params,
                     timeout=self.timeout_seconds,
                 )
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("Retry-After", "65"))
+                    logger.warning(
+                        "Open-Meteo HTTP 429 rate limit (attempt %d/%d); sleeping %.1fs",
+                        attempt,
+                        self.max_retries,
+                        retry_after,
+                    )
+                    if attempt < self.max_retries:
+                        time.sleep(retry_after)
+                        continue
+                    raise WeatherFetchError(
+                        f"Open-Meteo returned HTTP 429 after {self.max_retries} attempts: "
+                        f"{resp.text[:200]}"
+                    )
                 if 400 <= resp.status_code < 500:
                     raise WeatherFetchError(
                         f"Open-Meteo returned non-retryable HTTP {resp.status_code}: "
@@ -189,7 +204,7 @@ class OpenMeteoWeatherClient:
         end_date: str,
         crosswalk_df: pd.DataFrame | None = None,
         bronze_dir: Path | str | None = None,
-        chunk_days: int = 366,
+        chunk_days: int = 548,
     ) -> list[Path]:
         """Fetch all 64-district batches from Open-Meteo and save immutable Bronze files.
 
@@ -322,7 +337,7 @@ class OpenMeteoWeatherClient:
         crosswalk_df: pd.DataFrame | None = None,
         bronze_dir: Path | str | None = None,
         output_parquet: Path | str | None = DEFAULT_SILVER_WEATHER_PARQUET,
-        chunk_days: int = 366,
+        chunk_days: int = 548,
     ) -> pd.DataFrame:
         """Fetch live Open-Meteo batches into Bronze, then build Silver from Bronze."""
         cw = crosswalk_df if crosswalk_df is not None else load_district_crosswalk()
