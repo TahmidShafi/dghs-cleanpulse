@@ -124,6 +124,9 @@ def test_surveillance_summary_pending_real_source(client: TestClient) -> None:
     body = resp.json()
     assert body["status"] == "pending_real_source"
     assert body["reason"] == "no_real_dengue_series"
+    assert body["message"] == (
+        "Live DGHS feed offline; historical secondary-source series available under 'historical'."
+    )
     assert body["weather_available"] is True
     assert body["data"] is None
     assert body["historical"]["total_cases"] == 25
@@ -137,6 +140,9 @@ def test_surveillance_lags_pending_real_source_and_validation(client: TestClient
     body = resp.json()
     assert body["status"] == "pending_real_source"
     assert body["reason"] == "no_real_dengue_series"
+    assert body["message"] == (
+        "Live DGHS feed offline; historical secondary-source series available under 'historical'."
+    )
     assert body["weather_available"] is True
     assert body["data"] is None
 

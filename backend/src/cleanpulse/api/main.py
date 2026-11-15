@@ -166,7 +166,8 @@ def _pending_dengue_response(
         "status": "pending_real_source",
         "reason": "no_real_dengue_series",
         "message": (
-            "No real DGHS dengue time series is available yet. Synthetic backfill has been removed."
+            "Live DGHS feed offline; historical secondary-source series "
+            "available under 'historical'."
         ),
         "weather_available": weather_available,
         "data": None,
