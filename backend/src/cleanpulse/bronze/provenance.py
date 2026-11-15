@@ -73,7 +73,11 @@ def write_immutable_with_sidecar(
 
     target_path.parent.mkdir(parents=True, exist_ok=True)
     sha256_hex = hashlib.sha256(raw_bytes).hexdigest()
-    git_commit, git_dirty = get_git_provenance()
+    if "git_commit" in sidecar_metadata and "git_dirty" in sidecar_metadata:
+        git_commit = sidecar_metadata["git_commit"]
+        git_dirty = sidecar_metadata["git_dirty"]
+    else:
+        git_commit, git_dirty = get_git_provenance()
 
     full_sidecar = {
         **sidecar_metadata,

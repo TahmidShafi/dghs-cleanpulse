@@ -21,7 +21,7 @@ import httpx
 import pandas as pd  # type: ignore[import-untyped]
 import pandera.pandas as pa
 
-from cleanpulse.bronze.provenance import write_immutable_with_sidecar
+from cleanpulse.bronze.provenance import get_git_provenance, write_immutable_with_sidecar
 from cleanpulse.silver.spatial_crosswalk import load_district_crosswalk
 
 logger = logging.getLogger(__name__)
@@ -191,6 +191,7 @@ class OpenMeteoWeatherClient:
             raw_bytes, provenance = self._fetch_batch_raw(batch, start_date, end_date)
             fetched_batches.append((raw_bytes, provenance, batch_idx))
 
+        git_commit, git_dirty = get_git_provenance()
         saved_paths: list[Path] = []
         for raw_bytes, provenance, batch_idx in fetched_batches:
             fetched_dt = datetime.fromisoformat(str(provenance["fetched_at_utc"]))
@@ -200,7 +201,11 @@ class OpenMeteoWeatherClient:
             saved_raw, _saved_sidecar = write_immutable_with_sidecar(
                 raw_bytes=raw_bytes,
                 target_path=raw_path,
-                sidecar_metadata=provenance,
+                sidecar_metadata={
+                    **provenance,
+                    "git_commit": git_commit,
+                    "git_dirty": git_dirty,
+                },
             )
             saved_paths.append(saved_raw)
 
