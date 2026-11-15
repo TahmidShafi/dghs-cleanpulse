@@ -9,6 +9,7 @@ from pathlib import Path
 import httpx
 import pytest
 
+from cleanpulse import cli
 from cleanpulse.bronze.mendeley_client import (
     PINNED_DATASETS,
     MendeleyIngestionError,
@@ -37,27 +38,29 @@ def test_ingest_mendeley_verifies_hashes_and_excludes_pdf(
 
     def handler(request: httpx.Request) -> httpx.Response:
         requested_urls.append(str(request.url))
-        if "public-api/datasets" in str(request.url):
+        if (
+            "/public-api/datasets/z5mvwrfgsz/files" in str(request.url)
+            and "folder_id=root" in str(request.url)
+            and "version=1" in str(request.url)
+        ):
             return httpx.Response(
                 200,
-                json={
-                    "files": [
-                        {
-                            "filename": "Dhaka.csv",
-                            "content_details": {
-                                "download_url": "https://data.mendeley.com/files/dhaka",
-                                "sha256": payload_sha,
-                            },
+                json=[
+                    {
+                        "filename": "Dhaka.csv",
+                        "content_details": {
+                            "download_url": "https://data.mendeley.com/files/dhaka",
+                            "sha256_hash": payload_sha,
                         },
-                        {
-                            "filename": "Transaction receipt.pdf",
-                            "content_details": {
-                                "download_url": "https://data.mendeley.com/files/receipt",
-                                "sha256": "deadbeef",
-                            },
+                    },
+                    {
+                        "filename": "Transaction receipt.pdf",
+                        "content_details": {
+                            "download_url": "https://data.mendeley.com/files/receipt",
+                            "sha256_hash": "deadbeef",
                         },
-                    ]
-                },
+                    },
+                ],
             )
         if str(request.url) == "https://data.mendeley.com/files/dhaka":
             return httpx.Response(200, content=payload)
@@ -97,20 +100,20 @@ def test_ingest_mendeley_fails_loudly_on_hash_mismatch(
     monkeypatch.setitem(PINNED_DATASETS, "B", test_spec)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        if "public-api/datasets" in str(request.url):
+        if "/public-api/datasets/cgwjshkx5k/files" in str(request.url) and "folder_id=root" in str(
+            request.url
+        ):
             return httpx.Response(
                 200,
-                json={
-                    "files": [
-                        {
-                            "filename": "dataset.xlsx",
-                            "content_details": {
-                                "download_url": "https://data.mendeley.com/files/xlsx",
-                                "sha256": expected_sha,
-                            },
-                        }
-                    ]
-                },
+                json=[
+                    {
+                        "filename": "dataset.xlsx",
+                        "content_details": {
+                            "download_url": "https://data.mendeley.com/files/xlsx",
+                            "sha256_hash": expected_sha,
+                        },
+                    }
+                ],
             )
         return httpx.Response(200, content=b"corrupted-bytes")
 
@@ -118,3 +121,14 @@ def test_ingest_mendeley_fails_loudly_on_hash_mismatch(
     with pytest.raises(MendeleyIngestionError, match="Downloaded SHA-256 mismatch"):
         ingest_mendeley_dataset("B", bronze_root=tmp_path, client=client)
     assert not (tmp_path / "B" / "v2" / "dataset.xlsx").exists()
+
+
+def test_cli_ingest_mendeley_hash_mismatch_exits_nonzero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_on_hash(_dataset_key: str) -> list[Path]:
+        raise MendeleyIngestionError("Downloaded SHA-256 mismatch for dataset.xlsx")
+
+    monkeypatch.setattr(cli, "ingest_mendeley_dataset", fail_on_hash)
+    exit_code = cli.main(["ingest-mendeley", "--dataset", "B"])
+    assert exit_code != 0
