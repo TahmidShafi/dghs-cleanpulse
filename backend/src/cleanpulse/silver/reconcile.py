@@ -69,7 +69,7 @@ def run_reconciliation(
         how="inner",
     )
     a_vs_ref["abs_diff"] = a_vs_ref["a_cases"] - a_vs_ref["ref_cases"]
-    a_vs_ref["pct_diff"] = [
+    a_vs_ref["pct_diff_percent"] = [
         _pct_diff(float(a), float(r))
         for a, r in zip(a_vs_ref["a_cases"], a_vs_ref["ref_cases"], strict=True)
     ]
