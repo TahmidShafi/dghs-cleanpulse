@@ -23,8 +23,16 @@ DOCS_DIR = Path(__file__).resolve().parents[2] / "docs"
 BENCHMARK_REPORT = DOCS_DIR / "benchmarks.md"
 
 ENDPOINTS = [
-    ("/v1/surveillance/summary", "Surveillance Summary (KPIs, Zones, Age Groups)"),
-    ("/v1/surveillance/lags?zone=National&lag_days=16", "Lag Correlations & Aligned Series"),
+    ("/v1/surveillance/summary", "Surveillance Summary (Live Status & Historical Metadata)"),
+    (
+        "/v1/historical/weekly?scope=National",
+        "Historical Weekly Cases & ERA5 Climate (National)",
+    ),
+    (
+        "/v1/analytics/lag-correlations?scope=National&variable=weekly_precip_mm",
+        "Weekly Spearman Lag Correlations (0-8 Weeks)",
+    ),
+    ("/v1/weather/daily", "64-District Daily ERA5 Weather Series"),
     (
         "/v1/audit/anomalies?severity=ALL&anomaly_type=ALL",
         "Audit Anomalies (Severity & Type Breakdown)",
