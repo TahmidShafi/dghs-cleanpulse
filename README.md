@@ -10,15 +10,20 @@
 
 ## Visual Overview
 
-### Tab 1: Validation Demo (Synthetic Fault-Injection Input)
+### Validation demo (synthetic input)
 *Demonstrates the Pandera validation firewall on the hand-authored `backend/tests/fixtures/synthetic_dghs_fault_injection.html` test input (not real DGHS data).*
 
-![Tab 1: Validation Demo](docs/dashboard_tab1.png)
+![Validation demo (synthetic input)](docs/dashboard_tab1.png)
 
-### Tab 2: Real Weather Explorer (Dengue Pending)
+### Weather explorer
 *Displays the 64-district Open-Meteo Historical Weather API series (`2026-04-18` to `2026-10-14`) with a visible notice that the dengue time series and lag correlation are pending a real DGHS source.*
 
-![Tab 2: Real Weather Explorer](docs/dashboard_tab2.png)
+![Weather explorer](docs/dashboard_tab2.png)
+
+### Mobile view (Weather explorer at 375px)
+*Responsive 375px mobile layout of the Weather explorer tab.*
+
+![Mobile view: Weather explorer](docs/dashboard_mobile.png)
 
 ---
 
