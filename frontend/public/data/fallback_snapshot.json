@@ -2,10 +2,10 @@
   "metadata": {
     "source": "DGHS-CleanPulse DuckDB In-Memory Engine",
     "snapshot_version": "2.0.0",
-    "generated_at_utc": "2026-11-15T12:11:50.266840+00:00",
-    "extracted_at": "2026-11-15T12:11:50.266840+00:00",
-    "git_commit": "92e39dbbe27c1310e3b75d66fcef031c52b7bec6",
-    "git_dirty": true
+    "generated_at_utc": "2026-11-15T12:52:49.935076+00:00",
+    "extracted_at": "2026-11-15T12:52:49.935076+00:00",
+    "git_commit": "64d086919d2232e8aa52ffedbb2932e050479211",
+    "git_dirty": false
   },
   "surveillance_summary": {
     "status": "pending_real_source",
@@ -12082,7 +12082,7 @@
   },
   "pipeline_health": {
     "status": "healthy",
-    "timestamp": "2026-11-15T12:11:50.132030+00:00",
+    "timestamp": "2026-11-15T12:52:49.764800+00:00",
     "layer_counts": {
       "bronze_snapshots": 4,
       "silver_dengue_rows": 0,
@@ -12092,6 +12092,6 @@
       "gold_lag_rows": 0
     },
     "schemas_validated": true,
-    "duckdb_latency_ms": 0.182
+    "duckdb_latency_ms": 0.229
   }
 }
