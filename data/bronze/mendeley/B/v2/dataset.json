@@ -1,0 +1,17 @@
+{
+  "url": "https://data.mendeley.com/public-files/datasets/cgwjshkx5k/files/603c72d9-a6b2-441d-9f3b-552ebbda30b8/file_downloaded",
+  "metadata_url": "https://data.mendeley.com/public-api/datasets/cgwjshkx5k/files?folder_id=root&version=2",
+  "doi": "10.17632/cgwjshkx5k.2",
+  "dataset_id": "cgwjshkx5k",
+  "version": 2,
+  "licence": "CC BY 4.0",
+  "mendeley_sha256": "6c59b315619c828f3eb8ca96f396c4af6e93c01ab5007f3e1976bd360f2594a6",
+  "pinned_sha256": "6c59b315619c828f3eb8ca96f396c4af6e93c01ab5007f3e1976bd360f2594a6",
+  "http_status": 200,
+  "fetched_at_utc": "2026-11-15T13:49:45.789179+00:00",
+  "fetch_source": "mendeley_public_api",
+  "sha256": "6c59b315619c828f3eb8ca96f396c4af6e93c01ab5007f3e1976bd360f2594a6",
+  "size_bytes": 42311,
+  "git_commit": "53b1e0ed6ed873af1cc9fc7ce4503298190c5075",
+  "git_dirty": false
+}
