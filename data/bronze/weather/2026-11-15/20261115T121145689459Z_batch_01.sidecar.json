@@ -1,0 +1,38 @@
+{
+  "url": "https://archive-api.open-meteo.com/v1/archive?latitude=22.7324%2C23.8103%2C23.6071%2C24.0023%2C23.0051%2C24.4449%2C23.1641%2C23.2423%2C23.8617%2C23.5422%2C23.6238%2C23.9193%2C23.7574%2C24.2513%2C22.6516%2C23.6402&longitude=92.2985%2C90.4125%2C89.8429%2C90.4264%2C89.8266%2C90.7766%2C90.1897%2C90.4348%2C90.0003%2C90.5305%2C90.5%2C90.7202%2C89.6445%2C89.9167%2C89.7859%2C88.8418&start_date=2026-04-18&end_date=2026-10-14&daily=temperature_2m_mean%2Cprecipitation_sum%2Crelative_humidity_2m_mean&timezone=Asia%2FDhaka&models=era5",
+  "models": "era5",
+  "request_params": {
+    "latitude": "22.7324,23.8103,23.6071,24.0023,23.0051,24.4449,23.1641,23.2423,23.8617,23.5422,23.6238,23.9193,23.7574,24.2513,22.6516,23.6402",
+    "longitude": "92.2985,90.4125,89.8429,90.4264,89.8266,90.7766,90.1897,90.4348,90.0003,90.5305,90.5,90.7202,89.6445,89.9167,89.7859,88.8418",
+    "start_date": "2026-04-18",
+    "end_date": "2026-10-14",
+    "daily": "temperature_2m_mean,precipitation_sum,relative_humidity_2m_mean",
+    "timezone": "Asia/Dhaka",
+    "models": "era5"
+  },
+  "district_ids": [
+    "rangamati",
+    "dhaka",
+    "faridpur",
+    "gazipur",
+    "gopalganj",
+    "kishoreganj",
+    "madaripur",
+    "shariatpur",
+    "manikganj",
+    "munshiganj",
+    "narayanganj",
+    "narsingdi",
+    "rajbari",
+    "tangail",
+    "bagerhat",
+    "chuadanga"
+  ],
+  "http_status": 200,
+  "fetched_at_utc": "2026-11-15T12:11:45.689459+00:00",
+  "fetch_source": "live",
+  "git_commit": "92e39dbbe27c1310e3b75d66fcef031c52b7bec6",
+  "git_dirty": false,
+  "sha256": "bc9d6608232b4143b0c3c15661ec3bc226a49e1ec3fb8ef00a180e46b53827e5",
+  "size_bytes": 82125
+}
