@@ -15,15 +15,20 @@
 
 ![Validation demo (synthetic input)](docs/dashboard_tab1.png)
 
-### Weather explorer
-*Displays the 64-district Open-Meteo Historical Weather API series (`2026-04-18` to `2026-10-14`) with a visible notice that the dengue time series and lag correlation are pending a real DGHS source.*
+### Historical analysis (secondary source, 2022-2024)
+*Displays the 2022–2024 secondary-source weekly dengue case series alongside 64-district Open-Meteo ERA5 climate aggregates across 156 complete ISO weeks.*
 
-![Weather explorer](docs/dashboard_tab2.png)
+![Historical analysis (secondary source, 2022-2024)](docs/dashboard_tab2.png)
 
-### Mobile view (Weather explorer at 375px)
-*Responsive 375px mobile layout of the Weather explorer tab.*
+### Pre-registered lag view: descriptive Spearman rho, raw vs differenced
+*Weekly Spearman rank correlation (ρ) across lags 0–8 weeks comparing raw weekly levels and differenced (Δlog) sensitivity series.*
 
-![Mobile view: Weather explorer](docs/dashboard_mobile.png)
+![Pre-registered lag view: descriptive Spearman rho, raw vs differenced](docs/dashboard_lag.png)
+
+### Mobile view (Historical analysis at 375px)
+*Responsive 375px mobile layout of the Historical analysis tab.*
+
+![Mobile view: Historical analysis](docs/dashboard_mobile.png)
 
 ---
 
