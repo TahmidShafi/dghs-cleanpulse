@@ -4,7 +4,7 @@
 
 **DGHS-CleanPulse** is a Medallion-architecture data engineering pipeline (Bronze → Silver → Gold), Pandera validation firewall, DuckDB analytics API, and Next.js console for Bangladesh dengue surveillance and district-level climate data.
 
-> **Current status:** No real DGHS dengue data is currently ingested. All synthetic dengue series and silent fallbacks have been removed. The repository currently serves real Open-Meteo ERA5 archive data for 64 districts alongside a clearly labelled synthetic fault-injection demo for the Pandera validation firewall.
+> **Current status:** While the official DGHS dengue dashboard remains offline (HTTP 404), the repository now ingests **secondary historical dengue surveillance** (2022–2024 daily division-level case counts from Mendeley Dataset A, clearly labelled as a third-party transcription of DGHS daily press releases) paired with **2022–2024 Open-Meteo ERA5 reanalysis** across all 64 districts. Pre-registered weekly descriptive Spearman lag correlations (`lags 0–8`) are computed in the Gold layer and served in Tab 2 (*Historical analysis*), while Tab 1 (*Validation demo*) continues to demonstrate the Pandera validation firewall on synthetic fault-injection input. Live DGHS scraping remains fail-loud until the official feed returns.
 
 ---
 
@@ -71,8 +71,10 @@ docker compose up --build
 ```
 
 #### API Endpoints (`backend/src/cleanpulse/api/main.py`)
-- `GET /v1/surveillance/summary` — National and zone-level surveillance KPIs (`pending_real_source` until real DGHS data is ingested).
-- `GET /v1/surveillance/lags` — Climate-dengue lag correlations (`pending_real_source` until real DGHS data is ingested).
+- `GET /v1/surveillance/summary` — Live DGHS status (`pending_real_source` while offline) plus secondary `historical` 2022–2024 summary metadata.
+- `GET /v1/historical/weekly?scope=<National|division>` — 156 ISO-week rows (`2022-W01` to `2024-W52`) joining secondary division/national dengue cases with Open-Meteo ERA5 weekly aggregates.
+- `GET /v1/analytics/lag-correlations?scope=<scope>&variable=<var>` — Descriptive weekly Spearman `rho` across lags `0–8` weeks (`raw` and `diff_log` transforms, with sample size `n`, no p-values).
+- `GET /v1/surveillance/lags` — Legacy live-DGHS lag endpoint (`pending_real_source` until live DGHS data is ingested).
 - `GET /v1/weather/daily` — 64-district daily Open-Meteo ERA5 weather series.
 - `GET /v1/audit/anomalies` — Pandera validation anomalies log.
 - `GET /v1/health/pipeline` — DuckDB table availability, Silver/Gold row counts, and provenance metadata.
@@ -91,20 +93,24 @@ Verify weather row count and date range directly from the Silver Parquet table:
 ```bash
 uv run --project backend python -c "import pandas as pd; df = pd.read_parquet('data/silver/weather_districts_daily.parquet'); print(len(df), df['district_id'].nunique(), df['date'].min(), df['date'].max())"
 ```
-Output on `2026-11-15`: `11520 64 2026-04-18 2026-10-14`.
 
 ---
 
 ## Data Sources & Limitations
 
-1. **DGHS Dengue Surveillance (`https://dashboard.dghs.gov.bd/pages/heoc_dengue_v1.php`):**
-   - Returned **HTTP 404 Not Found** when checked on `2026-11-15` (the site root showed a maintenance notice).
-   - **No real dengue data has been ingested yet.** The HTML parser (`dghs_scraper.py`) was written against a hand-authored synthetic fixture (`synthetic_dghs_fault_injection.html`) and has **never been validated on the real DGHS page**.
-   - Additionally, reporting in [Prothom Alo](https://en.prothomalo.com/amp/story/bangladesh/tarjg9blv4) found that the DGHS control room's press release listed fewer dengue admissions at certain hospitals than those hospitals' own figures.
-2. **Weather Data (Open-Meteo Historical Weather API):**
-   - Sourced from the [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) with `models=era5`, which serves gridded **ERA5 reanalysis** (~0.25 degree grid) model estimates built from observations (stations, aircraft, buoys, radar, satellites) rather than raw point weather-station measurements.
-   - Values for the same dates can differ between fetches and between models, so the pipeline pins `models=era5` and archives every raw response with a provenance sidecar.
-   - The date range (`2026-04-18` to `2026-10-14`) was inherited from an earlier version and will be aligned with the real DGHS series in Phase 2.
-3. **Known Gaps & Phase 2 Roadmap:**
-   - Phase 2 will locate and validate the active official DGHS dengue source, adapt the Bronze parser to the real HTML/API/PDF structure, and re-enable Gold spatiotemporal lag analysis on real surveillance data.
-   - The Docker Compose setup has not been re-tested since the Phase 1 changes.
+1. **Primary Historical Dengue Series — Secondary Source (Mendeley Dataset A, 2022–2024):**
+   - **Citation & Licence:** Naher (Mendeley Data, DOI [`10.17632/z5mvwrfgsz.1`](https://doi.org/10.17632/z5mvwrfgsz.1), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)).
+   - **Provenance & Caveat:** Labelled everywhere in this repository as *"secondary source: transcribed from DGHS daily press releases (unverified transcription by third party)"*. Only the daily division-level case counts are ingested; the dataset's bundled weather columns are dropped.
+   - **Transformations Applied:** Report dates are shifted `-1 day` (because DGHS daily press releases cover the 24 hours ending 08:00 Asia/Dhaka on the report date) and aggregated to ISO 8601 Monday–Sunday weeks (`2022-W01` to `2024-W52`; incomplete edge weeks dropped and logged).
+2. **Reconciliation-Only Source (Mendeley Dataset B, 2020–2025):**
+   - **Citation & Licence:** Hasan, Ifti & Ifty (Mendeley Data, DOI [`10.17632/cgwjshkx5k.2`](https://doi.org/10.17632/cgwjshkx5k.2), [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)).
+   - **Scope:** Monthly division-level cases and deaths used strictly for cross-source reconciliation against Dataset A and official DGHS published annual totals ([`data/reference/dghs_published_annual_totals.csv`](data/reference/dghs_published_annual_totals.csv)). Dataset B and its death counts are not served on the dashboard. See [`docs/reconciliation_report.md`](docs/reconciliation_report.md) for full comparison figures.
+3. **Weather Data (Open-Meteo Historical Weather API — ERA5 Reanalysis):**
+   - Sourced from the [Open-Meteo Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) ([CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)) with `models=era5`, which serves gridded **ERA5 reanalysis** (~0.25 degree grid) rather than raw point weather-station measurements. District daily values are averaged to division and national weekly series.
+   - The active Silver/Gold weather window covers `2022-01-01` to `2024-12-31` across all 64 districts. Earlier 2026 Bronze weather snapshots remain archived in `data/bronze/` with their SHA-256 provenance sidecars.
+4. **Descriptive Analysis & Pre-Registration:**
+   - The weekly Spearman rank correlation analysis (`lags 0–8`) was pre-registered in [`docs/analysis_plan.md`](docs/analysis_plan.md) before any climate-dengue correlation was computed on real data. Descriptive results (without p-values, due to strong weekly autocorrelation and 486 multiple comparisons) are recorded in [`docs/analysis_results.md`](docs/analysis_results.md).
+5. **Live DGHS Surveillance Feed (`https://dashboard.dghs.gov.bd/pages/heoc_dengue_v1.php`):**
+   - Returned **HTTP 404 Not Found** when last checked on `2026-11-15` (site root showed a maintenance notice). The live scraper remains fail-loud and unvalidated against the live DGHS HTML structure until the official feed returns.
+   - Reporting in [Prothom Alo](https://en.prothomalo.com/amp/story/bangladesh/tarjg9blv4) has also noted discrepancies between DGHS control-room press releases and individual hospital totals.
+   - The Docker Compose setup has not been re-tested since the Phase 1/2 changes.
