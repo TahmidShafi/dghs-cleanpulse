@@ -1,14 +1,14 @@
 """Bronze Layer DGHS Dengue Surveillance Scraper & Raw Snapshot Ingestion Module.
 
-Preserves byte-for-byte fidelity of raw DGHS HTML tables, including upstream
-anomalies (e.g. Excel serial dates, non-normalized age buckets, row-sum mismatches)
-without silent dropping or premature cleaning.
+Preserves byte-for-byte fidelity of raw DGHS HTML responses in immutable
+date-partitioned storage (`data/bronze/dghs/YYYY-MM-DD/<UTC_timestamp>.html`)
+with provenance sidecar JSON files. Fails loudly on network, HTTP, or parse
+errors without silent fallbacks.
 """
 
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import re
 import time
@@ -19,13 +19,29 @@ from typing import Any
 import httpx
 from bs4 import BeautifulSoup
 
+from cleanpulse.bronze.provenance import (
+    ensure_not_in_repo_data,
+    write_immutable_with_sidecar,
+)
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_DGHS_URL = "https://dashboard.dghs.gov.bd/pages/heoc_dengue_v1.php"
 DEFAULT_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[3] / "tests" / "fixtures" / "dghs_sample_2026_10_14.html"
+    Path(__file__).resolve().parents[3]
+    / "tests"
+    / "fixtures"
+    / "synthetic_dghs_fault_injection.html"
 )
-DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[4] / "data" / "bronze"
+DEFAULT_OUTPUT_DIR = Path(__file__).resolve().parents[4] / "data" / "bronze" / "dghs"
+
+
+class DGHSFetchError(RuntimeError):
+    """Raised when fetching the live DGHS dashboard fails."""
+
+
+class DGHSParseError(ValueError):
+    """Raised when parsing DGHS HTML extracts 0 zones or 0 age groups."""
 
 
 class DGHSBronzeScraper:
@@ -37,18 +53,18 @@ class DGHSBronzeScraper:
         fixture_path: Path | str | None = None,
         timeout: float = 20.0,
         max_retries: int = 3,
-        backoff_factor: float = 0.5,
+        backoff_factor: float = 2.0,
         offline_mode: bool = False,
     ) -> None:
         """Initialize the DGHS Bronze scraper.
 
         Args:
             base_url: URL to the DGHS dynamic dengue dashboard.
-            fixture_path: Path to local HTML fallback fixture.
+            fixture_path: Path to synthetic HTML fixture (only for explicit offline mode).
             timeout: HTTP request timeout in seconds.
-            max_retries: Maximum number of HTTP request retries before falling back.
-            backoff_factor: Multiplier for exponential backoff sleep.
-            offline_mode: If True, bypass live HTTP requests and load local fixture directly.
+            max_retries: Maximum number of HTTP attempts on transient errors.
+            backoff_factor: Base multiplier for retry sleep (enforced >= 2.0s).
+            offline_mode: If True, bypass live HTTP requests and load synthetic fixture.
         """
         self.base_url = base_url
         self.fixture_path = Path(fixture_path) if fixture_path is not None else DEFAULT_FIXTURE_PATH
@@ -57,30 +73,38 @@ class DGHSBronzeScraper:
         self.backoff_factor = backoff_factor
         self.offline_mode = offline_mode
 
-    def compute_sha256(self, content: str) -> str:
-        """Compute SHA-256 cryptographic hash of raw HTML content.
+    def compute_sha256(self, content: str | bytes) -> str:
+        """Compute SHA-256 cryptographic hash of raw HTML content."""
+        raw = content.encode("utf-8") if isinstance(content, str) else content
+        return hashlib.sha256(raw).hexdigest()
 
-        Args:
-            content: Raw HTML content string.
+    def _read_fixture(self) -> bytes:
+        """Read raw bytes from the designated synthetic local fixture file."""
+        if not self.fixture_path.exists():
+            raise FileNotFoundError(
+                f"DGHS HTML fixture file does not exist at: {self.fixture_path}"
+            )
+        return self.fixture_path.read_bytes()
 
-        Returns:
-            Hex-encoded SHA-256 digest string.
-        """
-        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+    def fetch_raw(self, force_offline: bool = False) -> tuple[bytes, dict[str, Any]]:
+        """Fetch raw HTML bytes either via live HTTPS or explicit offline synthetic fixture.
 
-    def fetch_html(self, force_offline: bool = False) -> tuple[str, str, str]:
-        """Fetch raw HTML content either via live HTTP request or from local fixture.
-
-        Args:
-            force_offline: If True, forces reading from fixture regardless of scraper settings.
-
-        Returns:
-            Tuple of (raw_html_content, sha256_hash, source_type).
+        Retries ONLY on timeouts, connection errors, and HTTP 5xx responses, with
+        at least 2.0 seconds between attempts. Never retries 4xx responses and never
+        falls back silently.
         """
         if self.offline_mode or force_offline:
-            logger.info("Operating in offline mode. Reading from fixture: %s", self.fixture_path)
-            content = self._read_fixture()
-            return content, self.compute_sha256(content), "fixture"
+            logger.info(
+                "Operating in explicit offline mode. Reading fixture: %s", self.fixture_path
+            )
+            raw_bytes = self._read_fixture()
+            fetched_at = datetime.now(UTC).isoformat()
+            return raw_bytes, {
+                "url": str(self.fixture_path),
+                "http_status": None,
+                "fetched_at_utc": fetched_at,
+                "fetch_source": "synthetic_fixture",
+            }
 
         headers = {
             "User-Agent": (
@@ -104,62 +128,103 @@ class DGHSBronzeScraper:
                     timeout=self.timeout,
                     follow_redirects=True,
                     headers=headers,
-                    verify=False,
+                    verify=True,
                 ) as client:
                     response = client.get(self.base_url)
-                    response.raise_for_status()
-                    html = response.text
-                    return html, self.compute_sha256(html), "live"
-            except Exception as exc:
+
+                status_code = response.status_code
+                if 400 <= status_code < 500:
+                    raise DGHSFetchError(
+                        f"DGHS returned non-retryable client error HTTP {status_code} "
+                        f"for {response.url}"
+                    )
+                if status_code >= 500:
+                    raise httpx.HTTPStatusError(
+                        f"DGHS server error HTTP {status_code}",
+                        request=response.request,
+                        response=response,
+                    )
+
+                fetched_at = datetime.now(UTC).isoformat()
+                return response.content, {
+                    "url": str(response.url),
+                    "http_status": status_code,
+                    "fetched_at_utc": fetched_at,
+                    "fetch_source": "live",
+                }
+            except DGHSFetchError:
+                raise
+            except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as exc:
                 last_error = exc
                 logger.warning(
-                    "Attempt %d/%d failed with error: %s",
+                    "Transient DGHS fetch error on attempt %d/%d: %s",
                     attempt,
                     self.max_retries,
                     exc,
                 )
                 if attempt < self.max_retries:
-                    sleep_time = self.backoff_factor * (2 ** (attempt - 1))
+                    sleep_time = max(2.0, self.backoff_factor * (2 ** (attempt - 1)))
                     time.sleep(sleep_time)
+            except Exception as exc:
+                raise DGHSFetchError(f"Unexpected DGHS fetch error: {exc}") from exc
 
-        logger.warning(
-            "Live fetch exhausted %d retries (%s). Falling back to fixture: %s",
-            self.max_retries,
-            last_error,
-            self.fixture_path,
+        raise DGHSFetchError(
+            f"DGHS live fetch exhausted {self.max_retries} retries: {last_error}"
+        ) from last_error
+
+    def save_raw_bronze(
+        self,
+        raw_bytes: bytes,
+        provenance: dict[str, Any],
+        output_dir: Path | str | None = None,
+    ) -> tuple[Path, Path]:
+        """Save unmodified raw HTML bytes and provenance sidecar under YYYY-MM-DD/."""
+        target_dir = Path(output_dir) if output_dir is not None else DEFAULT_OUTPUT_DIR
+        if provenance.get("fetch_source") == "synthetic_fixture":
+            ensure_not_in_repo_data(target_dir)
+
+        fetched_dt = datetime.fromisoformat(str(provenance["fetched_at_utc"]))
+        date_folder = fetched_dt.strftime("%Y-%m-%d")
+        ts_name = fetched_dt.strftime("%Y%m%dT%H%M%S%fZ")
+        html_path = target_dir / date_folder / f"{ts_name}.html"
+        return write_immutable_with_sidecar(raw_bytes, html_path, provenance)
+
+    def parse_bronze_file(self, html_path: Path | str) -> dict[str, Any]:
+        """Parse a previously saved Bronze HTML file without making network requests."""
+        path = Path(html_path)
+        raw_bytes = path.read_bytes()
+        source_hash = self.compute_sha256(raw_bytes)
+        sidecar_path = path.with_suffix(".json")
+        fetch_source = "bronze_file"
+        source_url = str(path)
+        if sidecar_path.exists():
+            import json
+
+            sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+            fetch_source = str(sidecar.get("fetch_source", fetch_source))
+            source_url = str(sidecar.get("url", source_url))
+
+        html_content = raw_bytes.decode("utf-8", errors="replace")
+        return self.parse_dashboard(
+            html_content=html_content,
+            source_hash=source_hash,
+            fetch_source=fetch_source,
+            source_url=source_url,
         )
-        content = self._read_fixture()
-        return content, self.compute_sha256(content), "fixture_fallback"
-
-    def _read_fixture(self) -> str:
-        """Read HTML content from the designated local fixture file."""
-        if not self.fixture_path.exists():
-            raise FileNotFoundError(
-                f"DGHS HTML fixture file does not exist at: {self.fixture_path}"
-            )
-        return self.fixture_path.read_text(encoding="utf-8")
 
     def parse_dashboard(
         self,
         html_content: str,
         source_hash: str,
-        fetch_source: str = "fixture",
+        fetch_source: str = "live",
+        source_url: str | None = None,
     ) -> dict[str, Any]:
-        """Parse raw HTML tables using BeautifulSoup (lxml) without altering raw data values.
+        """Parse raw HTML tables using BeautifulSoup (lxml) without altering raw values.
 
-        Preserves exact strings, numbers, corrupted Excel dates, and unnormalized labels.
-
-        Args:
-            html_content: Raw HTML text of the dashboard.
-            source_hash: Cryptographic SHA-256 hash of html_content.
-            fetch_source: Provenance string ("live", "fixture", "fixture_fallback").
-
-        Returns:
-            Dictionary payload representing the raw Bronze snapshot.
+        Raises DGHSParseError if 0 zones or 0 age groups are extracted.
         """
         soup = BeautifulSoup(html_content, "lxml")
 
-        # 1. Extract report date metadata
         report_date_raw = ""
         date_elem = soup.find(id="report_date_label")
         if date_elem:
@@ -169,7 +234,6 @@ class DGHSBronzeScraper:
             if date_match:
                 report_date_raw = date_match.group(0).strip()
 
-        # 2. Extract summary cards if present
         summary_cards: dict[str, str] = {}
         card_ids = [
             ("daily_admitted", "card_daily_admitted"),
@@ -182,11 +246,9 @@ class DGHSBronzeScraper:
             if card_elem:
                 summary_cards[key] = card_elem.get_text(strip=True)
 
-        # 3. Extract Zone Distribution Table (10 reporting zones)
         zones: list[dict[str, str]] = []
         zone_table = soup.find("table", id="zone_distribution_table")
         if not zone_table:
-            # Fallback heuristic: search for table with header containing 'Zone / Division'
             for tbl in soup.find_all("table"):
                 if "Zone / Division" in tbl.get_text():
                     zone_table = tbl
@@ -198,8 +260,6 @@ class DGHSBronzeScraper:
             for row in rows:
                 cols = row.find_all("td")
                 if len(cols) >= 6:
-                    # Expected format: Sl, Zone/Division, Daily Admitted, Daily Deaths,
-                    # Total Admitted, Total Deaths, Total Discharged (optional)
                     sl_val = cols[0].get_text(strip=True)
                     zone_name = cols[1].get_text(strip=True)
                     if zone_name.lower() == "total":
@@ -218,7 +278,6 @@ class DGHSBronzeScraper:
                         }
                     )
 
-        # 4. Extract Age Group Distribution Table (preserving corrupted rows verbatim)
         age_groups: list[dict[str, str]] = []
         age_table = soup.find("table", id="age_distribution_table")
         if not age_table:
@@ -233,9 +292,6 @@ class DGHSBronzeScraper:
             for row in rows:
                 cols = row.find_all("td")
                 if len(cols) >= 4:
-                    # Columns: Age Group, Male, Female, Total, Deaths (optional)
-                    # Note: cols[0].get_text(strip=True) preserves exact string
-                    # e.g. "42309", "6-10", ""
                     age_group_label = cols[0].get_text(strip=True)
                     male_val = cols[1].get_text(strip=True)
                     female_val = cols[2].get_text(strip=True)
@@ -255,23 +311,16 @@ class DGHSBronzeScraper:
                         }
                     )
 
-        if (len(zones) == 0 or len(age_groups) == 0) and fetch_source != "fixture":
-            logger.warning(
-                "Live DGHS HTML extracted 0 zones or 0 age groups (possible Cloudflare / "
-                "IP block). Falling back to fixture: %s",
-                self.fixture_path,
-            )
-            fixture_content = self._read_fixture()
-            return self.parse_dashboard(
-                html_content=fixture_content,
-                source_hash=self.compute_sha256(fixture_content),
-                fetch_source="fixture_fallback",
+        if len(zones) == 0 or len(age_groups) == 0:
+            raise DGHSParseError(
+                f"DGHS HTML parse failed: extracted {len(zones)} zones and "
+                f"{len(age_groups)} age groups (source={fetch_source})."
             )
 
         scraped_at = datetime.now(UTC).isoformat()
         return {
             "metadata": {
-                "source_url": self.base_url,
+                "source_url": source_url or self.base_url,
                 "source_hash": source_hash,
                 "scraped_at_utc": scraped_at,
                 "report_date_raw": report_date_raw,
@@ -285,84 +334,17 @@ class DGHSBronzeScraper:
             "raw_html_length": len(html_content),
         }
 
-    def save_snapshot(
-        self,
-        data: dict[str, Any],
-        output_dir: Path | str | None = None,
-        date_str: str | None = None,
-    ) -> Path:
-        """Write immutable Bronze JSON snapshot to data/bronze/dghs_raw_YYYY_MM_DD.json.
-
-        Args:
-            data: Parsed raw dictionary payload.
-            output_dir: Directory where the snapshot will be saved.
-            date_str: Optional formatted date string (YYYY_MM_DD). If omitted, inferred from
-                      report_date_raw or current UTC date.
-
-        Returns:
-            Path of the saved snapshot file.
-        """
-        target_dir = Path(output_dir) if output_dir is not None else DEFAULT_OUTPUT_DIR
-        target_dir.mkdir(parents=True, exist_ok=True)
-
-        if not date_str:
-            raw_date = str(data.get("metadata", {}).get("report_date_raw", ""))
-            # Try to parse e.g. "14 October 2026" or "14-10-2026"
-            date_match = re.search(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", raw_date)
-            if date_match:
-                day, month_str, year = date_match.groups()
-                try:
-                    dt = datetime.strptime(f"{day} {month_str} {year}", "%d %B %Y")
-                    date_str = dt.strftime("%Y_%m_%d")
-                except ValueError:
-                    date_str = datetime.now(UTC).strftime("%Y_%m_%d")
-            else:
-                date_str = datetime.now(UTC).strftime("%Y_%m_%d")
-
-        output_path = target_dir / f"dghs_raw_{date_str}.json"
-
-        # Atomic write: write to temp file then rename
-        temp_path = target_dir / f".dghs_raw_{date_str}.tmp"
-        with open(temp_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-
-        temp_path.replace(output_path)
-        logger.info("Saved raw Bronze snapshot to: %s", output_path)
-        return output_path
-
     def run_pipeline(
         self,
         force_offline: bool = False,
         output_dir: Path | str | None = None,
     ) -> tuple[dict[str, Any], Path]:
-        """Execute end-to-end Bronze extraction: fetch, parse, and persist.
-
-        Args:
-            force_offline: If True, bypass live network requests.
-            output_dir: Target output directory for raw JSON snapshots.
-
-        Returns:
-            Tuple of (parsed_data_dict, saved_snapshot_path).
-        """
-        try:
-            html_content, source_hash, fetch_source = self.fetch_html(force_offline=force_offline)
-            data = self.parse_dashboard(
-                html_content=html_content,
-                source_hash=source_hash,
-                fetch_source=fetch_source,
-            )
-        except Exception as exc:
-            logger.warning(
-                "DGHS live extraction raised unhandled exception (%s). Falling back to fixture: %s",
-                exc,
-                self.fixture_path,
-            )
-            fixture_html = self._read_fixture()
-            data = self.parse_dashboard(
-                html_content=fixture_html,
-                source_hash=self.compute_sha256(fixture_html),
-                fetch_source="fixture_fallback",
-            )
-
-        saved_path = self.save_snapshot(data, output_dir=output_dir)
-        return data, saved_path
+        """Execute Bronze extraction: fetch raw, save immutable bronze, parse from bronze."""
+        raw_bytes, provenance = self.fetch_raw(force_offline=force_offline)
+        html_path, _sidecar_path = self.save_raw_bronze(
+            raw_bytes=raw_bytes,
+            provenance=provenance,
+            output_dir=output_dir,
+        )
+        data = self.parse_bronze_file(html_path)
+        return data, html_path

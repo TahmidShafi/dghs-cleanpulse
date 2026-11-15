@@ -1,0 +1,38 @@
+{
+  "url": "https://archive-api.open-meteo.com/v1/archive?latitude=24.5965%2C24.0064%2C24.3636%2C24.4534%2C25.6217%2C25.3288%2C25.8054%2C25.9923%2C25.9318%2C26.3411%2C25.7439%2C26.0337%2C24.375%2C24.4829%2C25.0658%2C24.8949&longitude=88.2775%2C89.2372%2C88.6241%2C89.7008%2C88.6355%2C89.543%2C89.6362%2C89.2847%2C88.856%2C88.5542%2C89.2752%2C88.4617%2C91.4167%2C91.7774%2C91.395%2C91.8687&start_date=2026-04-18&end_date=2026-10-14&daily=temperature_2m_mean%2Cprecipitation_sum%2Crelative_humidity_2m_mean&timezone=Asia%2FDhaka&models=era5",
+  "models": "era5",
+  "request_params": {
+    "latitude": "24.5965,24.0064,24.3636,24.4534,25.6217,25.3288,25.8054,25.9923,25.9318,26.3411,25.7439,26.0337,24.375,24.4829,25.0658,24.8949",
+    "longitude": "88.2775,89.2372,88.6241,89.7008,88.6355,89.543,89.6362,89.2847,88.856,88.5542,89.2752,88.4617,91.4167,91.7774,91.395,91.8687",
+    "start_date": "2026-04-18",
+    "end_date": "2026-10-14",
+    "daily": "temperature_2m_mean,precipitation_sum,relative_humidity_2m_mean",
+    "timezone": "Asia/Dhaka",
+    "models": "era5"
+  },
+  "district_ids": [
+    "chapainawabganj",
+    "pabna",
+    "rajshahi",
+    "sirajganj",
+    "dinajpur",
+    "gaibandha",
+    "kurigram",
+    "lalmonirhat",
+    "nilphamari",
+    "panchagarh",
+    "rangpur",
+    "thakurgaon",
+    "habiganj",
+    "moulvibazar",
+    "sunamganj",
+    "sylhet"
+  ],
+  "http_status": 200,
+  "fetched_at_utc": "2026-11-15T12:11:47.978252+00:00",
+  "fetch_source": "live",
+  "git_commit": "92e39dbbe27c1310e3b75d66fcef031c52b7bec6",
+  "git_dirty": false,
+  "sha256": "6f2651b3f3ecf44bc3c243f737dd0a1295078e93b109045efa6d0ace761f619b",
+  "size_bytes": 82453
+}

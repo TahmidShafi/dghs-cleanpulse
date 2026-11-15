@@ -34,7 +34,12 @@ The data pipeline is organized into immutable layers:
 
 ---
 
-## 4. Testing & Atomic Commits
+## 4. Testing, Honesty & Atomic Commits
 - **Test Parity**: Every module in `backend/src/` must have a corresponding test in `backend/tests/`.
+- **No Synthetic Data in `data/`**: Never write synthetic or fixture-derived outputs into `data/`.
+- **No Silent Fallbacks**: Pipeline stages and scrapers must fail loudly with explicit errors and non-zero exit codes rather than falling back silently to fixtures or stale caches.
+- **Bronze Provenance Sidecars**: Every raw file in `data/bronze/` must be immutable (never overwritten) and paired with a JSON provenance sidecar recording `url`, `http_status`, `sha256`, `fetched_at_utc`, `fetch_source`, `git_commit`, and `git_dirty`.
+- **No Hard-Coded Result Numbers**: Never hard-code pipeline output numbers in integration tests, real-data tests, or docs (exact oracle assertions are permitted only in unit tests against controlled synthetic fixtures). Every number in docs/README must be produced by a repo script or command, with the command shown.
+- **Pin External API Models/Versions**: Pin model/version parameters for external data APIs where available, and record them in bronze sidecars.
 - **Testing Tools**: `pytest` and `pytest-asyncio`. Run tests before committing.
 - **Git Commits**: Use small, atomic Conventional Commits (`feat:`, `fix:`, `test:`, `docs:`, `chore:`) to ensure disciplined version control history.

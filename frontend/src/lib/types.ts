@@ -1,6 +1,6 @@
 /**
  * DGHS-CleanPulse Type Definitions
- * Typed representations of the FastAPI REST Service schemas.
+ * Typed representations of the FastAPI REST Service schemas and static snapshots.
  */
 
 export interface ZoneSummaryItem {
@@ -24,7 +24,7 @@ export interface AgeCohortItem {
   deaths: number;
 }
 
-export interface SurveillanceSummaryResponse {
+export interface SurveillanceSummaryData {
   report_date: string;
   total_admitted: number;
   total_discharged: number;
@@ -36,31 +36,28 @@ export interface SurveillanceSummaryResponse {
   age_groups: AgeCohortItem[];
 }
 
-export interface LagCorrelationItem {
-  lag_days: number;
-  pearson_r_precip: number;
-  pearson_r_humidity: number;
-  pearson_r_temp: number;
-  sample_size: number;
+export interface SurveillanceSummaryResponse {
+  status: "available" | "pending_real_source";
+  reason: string | null;
+  message: string;
+  weather_available: boolean;
+  data: SurveillanceSummaryData | null;
 }
 
-export interface AlignedTimeSeriesItem {
+export interface WeatherDailyPoint {
   date: string;
-  daily_admitted: number;
-  daily_deaths: number;
-  total_admitted: number;
-  lagged_precip_mm: number | null;
-  lagged_humidity_pct: number | null;
-  lagged_temp_c: number | null;
+  precip_mm: number;
+  humidity_pct: number;
+  temp_c: number;
 }
 
-export interface SurveillanceLagsResponse {
+export interface WeatherDailyResponse {
   zone_name: string;
-  selected_lag_days: number;
-  peak_lag_days: number;
-  peak_correlation_r: number;
-  lag_correlations: LagCorrelationItem[];
-  aligned_time_series: AlignedTimeSeriesItem[];
+  source: string;
+  start_date: string;
+  end_date: string;
+  district_count: number;
+  series: WeatherDailyPoint[];
 }
 
 export interface AnomalyItem {
@@ -98,24 +95,40 @@ export interface PipelineHealthResponse {
   duckdb_latency_ms: number;
 }
 
+export interface SyntheticDemoData {
+  synthetic: boolean;
+  fixture_path: string;
+  fixture_sha256: string;
+  git_commit: string | null;
+  git_dirty: boolean | null;
+  disclaimer: string;
+  age_groups: AgeCohortItem[];
+  audit_anomalies: AuditAnomaliesResponse;
+}
+
 export interface FallbackSnapshotData {
   metadata: {
     source: string;
     snapshot_version: string;
+    generated_at_utc: string;
     extracted_at: string;
+    git_commit: string | null;
+    git_dirty: boolean | null;
   };
   surveillance_summary: SurveillanceSummaryResponse;
-  lags_by_zone: Record<string, SurveillanceLagsResponse>;
+  weather_by_zone: Record<string, WeatherDailyResponse>;
   audit_anomalies: AuditAnomaliesResponse;
   pipeline_health: PipelineHealthResponse;
 }
 
 export interface DashboardState {
   summary: SurveillanceSummaryResponse;
-  lags: SurveillanceLagsResponse;
+  weather: WeatherDailyResponse;
   anomalies: AuditAnomaliesResponse;
   health: PipelineHealthResponse;
+  syntheticDemo: SyntheticDemoData | null;
   isLive: boolean;
   isFallback: boolean;
+  snapshotGeneratedAt: string | null;
   lastUpdated: string;
 }

@@ -1,0 +1,261 @@
+{
+  "synthetic": true,
+  "fixture_path": "backend/tests/fixtures/synthetic_dghs_fault_injection.html",
+  "fixture_sha256": "7b149114298badedfa8ecf81be0e0508d5792e0c764272699e87bc3167039bc3",
+  "git_commit": "92e39dbbe27c1310e3b75d66fcef031c52b7bec6",
+  "git_dirty": true,
+  "disclaimer": "SYNTHETIC DEMO: Generated from hand-authored fault-injection test input (synthetic_dghs_fault_injection.html). Not real DGHS surveillance data.",
+  "age_groups": [
+    {
+      "report_date": "2026-10-14",
+      "age_group": "0-5",
+      "male_cases": 1250,
+      "female_cases": 980,
+      "reported_total": 2230,
+      "reconciled_total": 2230,
+      "arithmetic_delta": 0,
+      "deaths": 12
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "06-10",
+      "male_cases": 3021,
+      "female_cases": 2296,
+      "reported_total": 5317,
+      "reconciled_total": 5317,
+      "arithmetic_delta": 0,
+      "deaths": 25
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "11-15",
+      "male_cases": 2400,
+      "female_cases": 1900,
+      "reported_total": 4300,
+      "reconciled_total": 4300,
+      "arithmetic_delta": 0,
+      "deaths": 18
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "16-20",
+      "male_cases": 3100,
+      "female_cases": 2500,
+      "reported_total": 5600,
+      "reconciled_total": 5600,
+      "arithmetic_delta": 0,
+      "deaths": 22
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "21-25",
+      "male_cases": 3005,
+      "female_cases": 2375,
+      "reported_total": 5390,
+      "reconciled_total": 5380,
+      "arithmetic_delta": 10,
+      "deaths": 30
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "26-30",
+      "male_cases": 2800,
+      "female_cases": 2100,
+      "reported_total": 4900,
+      "reconciled_total": 4900,
+      "arithmetic_delta": 0,
+      "deaths": 24
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "31-35",
+      "male_cases": 2200,
+      "female_cases": 1800,
+      "reported_total": 4000,
+      "reconciled_total": 4000,
+      "arithmetic_delta": 0,
+      "deaths": 20
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "36-40",
+      "male_cases": 1800,
+      "female_cases": 1500,
+      "reported_total": 3300,
+      "reconciled_total": 3300,
+      "arithmetic_delta": 0,
+      "deaths": 15
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "41-45",
+      "male_cases": 1400,
+      "female_cases": 1200,
+      "reported_total": 2600,
+      "reconciled_total": 2600,
+      "arithmetic_delta": 0,
+      "deaths": 14
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "46-50",
+      "male_cases": 1100,
+      "female_cases": 950,
+      "reported_total": 2050,
+      "reconciled_total": 2050,
+      "arithmetic_delta": 0,
+      "deaths": 16
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "51-55",
+      "male_cases": 850,
+      "female_cases": 720,
+      "reported_total": 1570,
+      "reconciled_total": 1570,
+      "arithmetic_delta": 0,
+      "deaths": 12
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "56-60",
+      "male_cases": 600,
+      "female_cases": 510,
+      "reported_total": 1110,
+      "reconciled_total": 1110,
+      "arithmetic_delta": 0,
+      "deaths": 10
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "61-65",
+      "male_cases": 450,
+      "female_cases": 390,
+      "reported_total": 840,
+      "reconciled_total": 840,
+      "arithmetic_delta": 0,
+      "deaths": 8
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "66-70",
+      "male_cases": 280,
+      "female_cases": 240,
+      "reported_total": 520,
+      "reconciled_total": 520,
+      "arithmetic_delta": 0,
+      "deaths": 6
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "71-75",
+      "male_cases": 150,
+      "female_cases": 130,
+      "reported_total": 280,
+      "reconciled_total": 280,
+      "arithmetic_delta": 0,
+      "deaths": 4
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "76-80",
+      "male_cases": 80,
+      "female_cases": 70,
+      "reported_total": 150,
+      "reconciled_total": 150,
+      "arithmetic_delta": 0,
+      "deaths": 2
+    },
+    {
+      "report_date": "2026-10-14",
+      "age_group": "80+",
+      "male_cases": 45,
+      "female_cases": 40,
+      "reported_total": 85,
+      "reconciled_total": 85,
+      "arithmetic_delta": 0,
+      "deaths": 2
+    }
+  ],
+  "audit_anomalies": {
+    "total_anomalies": 6,
+    "severity_counts": {
+      "CRITICAL": 4,
+      "WARNING": 2
+    },
+    "type_counts": {
+      "INVALID_AGE_BUCKET": 2,
+      "EXCEL_SERIAL_DATE_CAST": 2,
+      "ZERO_PAD_DRIFT": 1,
+      "GENDER_SUM_MISMATCH": 1
+    },
+    "anomalies": [
+      {
+        "anomaly_id": "ANOM-5F45E42A",
+        "detected_at_utc": "2026-11-15T12:11:50.426988+00:00",
+        "table_name": "dengue_age_groups",
+        "row_key": "6-10",
+        "raw_value": "age_group=6-10 (male=1, female=0, total=1)",
+        "repaired_value": "merged into age_group=06-10",
+        "anomaly_type": "ZERO_PAD_DRIFT",
+        "severity": "WARNING",
+        "explanation": "Non-padded age group '6-10' merged into canonical '06-10' (absorbed 1 cases)"
+      },
+      {
+        "anomaly_id": "ANOM-32F910AA",
+        "detected_at_utc": "2026-11-15T12:11:50.426988+00:00",
+        "table_name": "dengue_age_groups",
+        "row_key": "0-10",
+        "raw_value": "age_group='0-10', male=1, female=0, total=1, deaths=0",
+        "repaired_value": "QUARANTINED",
+        "anomaly_type": "INVALID_AGE_BUCKET",
+        "severity": "CRITICAL",
+        "explanation": "Overlapping age bucket '0-10' quarantined"
+      },
+      {
+        "anomaly_id": "ANOM-C8CC5273",
+        "detected_at_utc": "2026-11-15T12:11:50.426988+00:00",
+        "table_name": "dengue_age_groups",
+        "row_key": "42309",
+        "raw_value": "age_group=42309, male=44, female=19, total=63, deaths=2",
+        "repaired_value": "QUARANTINED_EXCEL_DATE (decoded=2015-11-01)",
+        "anomaly_type": "EXCEL_SERIAL_DATE_CAST",
+        "severity": "CRITICAL",
+        "explanation": "Excel serial date '42309' decoded to date 2015-11-01; quarantined from primary age cohorts"
+      },
+      {
+        "anomaly_id": "ANOM-7F5DC52D",
+        "detected_at_utc": "2026-11-15T12:11:50.426988+00:00",
+        "table_name": "dengue_age_groups",
+        "row_key": "46301",
+        "raw_value": "age_group=46301, male=36, female=31, total=67, deaths=3",
+        "repaired_value": "QUARANTINED_EXCEL_DATE (decoded=2026-10-06)",
+        "anomaly_type": "EXCEL_SERIAL_DATE_CAST",
+        "severity": "CRITICAL",
+        "explanation": "Excel serial date '46301' decoded to date 2026-10-06; quarantined from primary age cohorts"
+      },
+      {
+        "anomaly_id": "ANOM-EF851D02",
+        "detected_at_utc": "2026-11-15T12:11:50.426988+00:00",
+        "table_name": "dengue_age_groups",
+        "row_key": "<EMPTY>",
+        "raw_value": "age_group='', male=4, female=3, total=7, deaths=0",
+        "repaired_value": "QUARANTINED",
+        "anomaly_type": "INVALID_AGE_BUCKET",
+        "severity": "CRITICAL",
+        "explanation": "Empty age group bucket '' quarantined"
+      },
+      {
+        "anomaly_id": "ANOM-2D73B86E",
+        "detected_at_utc": "2026-11-15T12:11:50.426988+00:00",
+        "table_name": "dengue_age_groups",
+        "row_key": "21-25",
+        "raw_value": "reported_total=5390 (male=3005, female=2375, sum=5380)",
+        "repaired_value": "reconciled_total=5380",
+        "anomaly_type": "GENDER_SUM_MISMATCH",
+        "severity": "WARNING",
+        "explanation": "Reported total (5390) differs from male+female sum (5380) by delta +10"
+      }
+    ]
+  }
+}

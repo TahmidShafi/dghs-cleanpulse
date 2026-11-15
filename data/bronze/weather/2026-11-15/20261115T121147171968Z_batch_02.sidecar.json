@@ -1,0 +1,38 @@
+{
+  "url": "https://archive-api.open-meteo.com/v1/archive?latitude=23.1664%2C23.545%2C22.8456%2C23.9013%2C23.4873%2C23.7725%2C23.1725%2C22.7185%2C24.9375%2C24.7471%2C24.8709%2C25.0205%2C24.8465%2C25.1011%2C24.7936%2C24.4206&longitude=89.2138%2C89.1726%2C89.5403%2C89.1205%2C89.4198%2C88.6318%2C89.5127%2C89.0705%2C89.9378%2C90.4203%2C90.7279%2C90.0153%2C89.377%2C89.027%2C88.9318%2C88.9324&start_date=2026-04-18&end_date=2026-10-14&daily=temperature_2m_mean%2Cprecipitation_sum%2Crelative_humidity_2m_mean&timezone=Asia%2FDhaka&models=era5",
+  "models": "era5",
+  "request_params": {
+    "latitude": "23.1664,23.545,22.8456,23.9013,23.4873,23.7725,23.1725,22.7185,24.9375,24.7471,24.8709,25.0205,24.8465,25.1011,24.7936,24.4206",
+    "longitude": "89.2138,89.1726,89.5403,89.1205,89.4198,88.6318,89.5127,89.0705,89.9378,90.4203,90.7279,90.0153,89.377,89.027,88.9318,88.9324",
+    "start_date": "2026-04-18",
+    "end_date": "2026-10-14",
+    "daily": "temperature_2m_mean,precipitation_sum,relative_humidity_2m_mean",
+    "timezone": "Asia/Dhaka",
+    "models": "era5"
+  },
+  "district_ids": [
+    "jashore",
+    "jhenaidah",
+    "khulna",
+    "kushtia",
+    "magura",
+    "meherpur",
+    "narail",
+    "satkhira",
+    "jamalpur",
+    "mymensingh",
+    "netrokona",
+    "sherpur",
+    "bogura",
+    "joypurhat",
+    "naogaon",
+    "natore"
+  ],
+  "http_status": 200,
+  "fetched_at_utc": "2026-11-15T12:11:47.171968+00:00",
+  "fetch_source": "live",
+  "git_commit": "92e39dbbe27c1310e3b75d66fcef031c52b7bec6",
+  "git_dirty": false,
+  "sha256": "1ebf75cae1aa732471c040ccc09d2840097dd9869bd3cae70a379247da6ca8b2",
+  "size_bytes": 82219
+}

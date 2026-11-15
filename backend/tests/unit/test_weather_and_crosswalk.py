@@ -1,18 +1,23 @@
-"""Unit tests for the 64-District Spatial Crosswalk, Open-Meteo Batch Client,
-and 180-Day Silver Backfill.
-"""
+"""Unit tests for the 64-District Spatial Crosswalk and Open-Meteo Bronze/Silver Client."""
 
+from __future__ import annotations
+
+import hashlib
+import json
+from datetime import date
 from pathlib import Path
 
+import httpx
 import numpy as np
 import pandas as pd
+import pytest
 
 from cleanpulse.bronze.weather_client import (
-    DEFAULT_SILVER_WEATHER_PARQUET,
     OpenMeteoWeatherClient,
     WeatherDailySilverSchema,
+    WeatherFetchError,
 )
-from cleanpulse.silver.firewall import CANONICAL_ZONES, DGHSDivisionSilverSchema
+from cleanpulse.silver.firewall import CANONICAL_ZONES
 from cleanpulse.silver.spatial_crosswalk import (
     DEFAULT_CROSSWALK_PATH,
     DistrictCrosswalkSilverSchema,
@@ -20,11 +25,7 @@ from cleanpulse.silver.spatial_crosswalk import (
     get_districts_for_zone,
     load_district_crosswalk,
 )
-from cleanpulse.silver.timeseries_backfill import (
-    DEFAULT_SILVER_ZONES_PARQUET,
-    ZONE_TARGET_ADMISSIONS,
-    EpidemiologicalBackfillGenerator,
-)
+from tests.synthetic_weather import generate_synthetic_weather
 
 
 def test_spatial_crosswalk_structure_and_coverage() -> None:
@@ -32,15 +33,11 @@ def test_spatial_crosswalk_structure_and_coverage() -> None:
     assert DEFAULT_CROSSWALK_PATH.exists()
     df = load_district_crosswalk(DEFAULT_CROSSWALK_PATH)
 
-    # 1. Row count and uniqueness
     assert len(df) == 64
     assert df["district_id"].nunique() == 64
     assert df["district_name"].nunique() == 64
-
-    # 2. Schema compliance
     DistrictCrosswalkSilverSchema.validate(df, lazy=True)
 
-    # 3. All 10 DGHS surveillance reporting zones must be present
     unique_zones: set[str] = set()
     for zones in df["dghs_reporting_zones"]:
         if isinstance(zones, (list, np.ndarray)):
@@ -50,153 +47,189 @@ def test_spatial_crosswalk_structure_and_coverage() -> None:
     assert set(CANONICAL_ZONES).issubset(unique_zones)
     assert len(unique_zones) == 10
 
-    # 4. Dhaka Metro split validation
-    dncc_districts = get_districts_for_zone("DNCC", df)
-    dscc_districts = get_districts_for_zone("DSCC", df)
-    out_of_cc_districts = get_districts_for_zone("Dhaka (Out of CC)", df)
+    assert get_districts_for_zone("DNCC", df) == ["dhaka"]
+    assert get_districts_for_zone("DSCC", df) == ["dhaka"]
+    out_of_cc = get_districts_for_zone("Dhaka (Out of CC)", df)
+    assert "madaripur" in out_of_cc
+    assert len(out_of_cc) == 12
 
-    assert dncc_districts == ["dhaka"]
-    assert dscc_districts == ["dhaka"]
-    assert "madaripur" in out_of_cc_districts
-    assert "shariatpur" in out_of_cc_districts
-    assert len(out_of_cc_districts) == 12
-
-    # 5. Coordinate integrity within Bangladesh geographical envelope
-    dhaka = get_district_by_id("dhaka", df)
-    madaripur = get_district_by_id("madaripur", df)
-    shariatpur = get_district_by_id("shariatpur", df)
-
-    assert 20.5 <= dhaka["latitude"] <= 26.8
-    assert 88.0 <= dhaka["longitude"] <= 92.8
-    assert 20.5 <= madaripur["latitude"] <= 26.8
-    assert 88.0 <= madaripur["longitude"] <= 92.8
-    assert 20.5 <= shariatpur["latitude"] <= 26.8
-    assert 88.0 <= shariatpur["longitude"] <= 92.8
+    for dist_id in ("dhaka", "madaripur", "shariatpur"):
+        rec = get_district_by_id(dist_id, df)
+        assert 20.5 <= rec["latitude"] <= 26.8
+        assert 88.0 <= rec["longitude"] <= 92.8
 
 
-def test_weather_batch_client_deterministic_offline_fallback(tmp_path: Path) -> None:
-    """Verify that offline climate generator produces 11,520 valid rows passing schema."""
-    crosswalk_df = load_district_crosswalk()
-    client = OpenMeteoWeatherClient(batch_size=16)
+def test_synthetic_weather_test_helper_schema_and_properties() -> None:
+    """Verify the test-only synthetic weather helper satisfies Silver schema & invariants."""
+    cw = load_district_crosswalk()
+    df = generate_synthetic_weather(cw.to_dict(orient="records"))
+    WeatherDailySilverSchema.validate(df, lazy=True)
 
-    # Run in force_offline mode to test deterministic generator
-    output_parquet = tmp_path / "test_weather.parquet"
+    assert df["district_id"].nunique() == 64
+    assert not df.duplicated(subset=["date", "district_id"]).any()
+    dates = sorted(df["date"].unique())
+    expected_span = (date.fromisoformat(dates[-1]) - date.fromisoformat(dates[0])).days + 1
+    assert len(dates) == expected_span
+    assert (df["precipitation_sum"] >= 0.0).all()
+
+
+def test_weather_ingest_bronze_and_build_silver_from_bronze(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify live weather ingestion writes immutable Bronze + sidecars and builds Silver."""
+    cw = load_district_crosswalk().head(4).copy()
+    dates = ["2026-10-12", "2026-10-13", "2026-10-14"]
+
+    captured_params: list[dict[str, str]] = []
+
+    def mock_get(url: str, params: dict[str, str], timeout: float) -> httpx.Response:
+        captured_params.append(dict(params))
+        payload = [
+            {
+                "daily": {
+                    "time": dates,
+                    "temperature_2m_mean": [28.1, 28.4, 27.9],
+                    "precipitation_sum": [0.0, 12.3, 4.1],
+                    "relative_humidity_2m_mean": [78.0, 84.0, 81.0],
+                }
+            }
+            for _ in range(len(cw))
+        ]
+        req = httpx.Request("GET", url, params=params)
+        return httpx.Response(200, request=req, json=payload)
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+
+    client = OpenMeteoWeatherClient(batch_size=4)
+    bronze_dir = tmp_path / "bronze" / "weather"
+    silver_parquet = tmp_path / "silver" / "weather_districts_daily.parquet"
+
     df = client.fetch_climate_data(
-        crosswalk_df=crosswalk_df,
-        force_offline=True,
-        output_parquet=output_parquet,
+        crosswalk_df=cw,
+        start_date="2026-10-12",
+        end_date="2026-10-14",
+        bronze_dir=bronze_dir,
+        output_parquet=silver_parquet,
     )
 
-    # 1. Validate file creation
-    assert output_parquet.exists()
+    assert silver_parquet.exists()
+    raw_files = [p for p in bronze_dir.rglob("*.json") if not p.name.endswith(".sidecar.json")]
+    assert len(raw_files) == 1
+    sidecar_path = raw_files[0].with_name(f"{raw_files[0].stem}.sidecar.json")
+    assert sidecar_path.exists()
 
-    # 2. Validate dimensions: 64 districts * 180 days = 11,520 rows
-    assert len(df) == 64 * 180
-    assert df["district_id"].nunique() == 64
-    assert df["date"].nunique() == 180
-    assert df["date"].min() == "2026-04-18"
-    assert df["date"].max() == "2026-10-14"
+    sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    assert len(captured_params) == 1
+    assert captured_params[0]["models"] == "era5"
+    assert sidecar["models"] == "era5"
+    assert sidecar["sha256"] == hashlib.sha256(raw_files[0].read_bytes()).hexdigest()
+    assert sidecar["fetch_source"] == "live"
+    assert "request_params" in sidecar
+    assert "git_commit" in sidecar
+    assert "git_dirty" in sidecar
 
-    # 3. Strict schema validation
-    WeatherDailySilverSchema.validate(df, lazy=True)
-
-    # 4. Value boundaries
-    assert df["temperature_2m_mean"].min() >= -5.0
-    assert df["temperature_2m_mean"].max() <= 55.0
-    assert df["precipitation_sum"].min() >= 0.0
-    assert df["relative_humidity_2m_mean"].min() >= 0.0
-    assert df["relative_humidity_2m_mean"].max() <= 100.0
-
-
-def test_silver_weather_parquet_persisted_dataset() -> None:
-    """Verify that data/silver/weather_districts_daily.parquet contains 11,520 valid rows."""
-    assert DEFAULT_SILVER_WEATHER_PARQUET.exists()
-    df = pd.read_parquet(DEFAULT_SILVER_WEATHER_PARQUET)
-
-    assert len(df) == 11520
-    assert df["district_id"].nunique() == 64
-    assert df["date"].nunique() == 180
-    all_zones: set[str] = set()
-    for z in df["dghs_reporting_zone"].unique():
-        all_zones.update([part.strip() for part in z.split(",")])
-    assert set(CANONICAL_ZONES).issubset(all_zones)
-
-    WeatherDailySilverSchema.validate(df, lazy=True)
+    loaded = pd.read_parquet(silver_parquet)
+    assert len(loaded) == len(df) == 4 * 3
+    WeatherDailySilverSchema.validate(loaded, lazy=True)
 
 
-def test_timeseries_backfill_generator_reproducibility_and_targets(tmp_path: Path) -> None:
-    """Verify that 180-day backfill produces 1,800 rows ending on 105,316 cumulative cases."""
-    assert DEFAULT_SILVER_WEATHER_PARQUET.exists()
-    weather_df = pd.read_parquet(DEFAULT_SILVER_WEATHER_PARQUET)
+def test_weather_fails_loudly_without_partial_silver(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify HTTP 404 or mid-run batch failure raises WeatherFetchError and writes no Silver."""
+    cw = load_district_crosswalk().head(4).copy()
+    call_count = 0
 
-    generator = EpidemiologicalBackfillGenerator(
-        weather_parquet_path=DEFAULT_SILVER_WEATHER_PARQUET
+    def mock_get(url: str, params: dict[str, str], timeout: float) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        req = httpx.Request("GET", url, params=params)
+        if call_count == 1:
+            payload = [
+                {
+                    "daily": {
+                        "time": ["2026-10-14"],
+                        "temperature_2m_mean": [28.0],
+                        "precipitation_sum": [1.0],
+                        "relative_humidity_2m_mean": [80.0],
+                    }
+                }
+                for _ in range(2)
+            ]
+            return httpx.Response(200, request=req, json=payload)
+        return httpx.Response(404, request=req, text="Not Found")
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+
+    client = OpenMeteoWeatherClient(batch_size=2, max_retries=2)
+    bronze_dir = tmp_path / "bronze" / "weather"
+    silver_parquet = tmp_path / "silver" / "weather_districts_daily.parquet"
+
+    with pytest.raises(WeatherFetchError, match="404"):
+        client.fetch_climate_data(
+            crosswalk_df=cw,
+            start_date="2026-10-14",
+            end_date="2026-10-14",
+            bronze_dir=bronze_dir,
+            output_parquet=silver_parquet,
+        )
+
+    assert not silver_parquet.exists()
+    assert not list(bronze_dir.rglob("*.json")) if bronze_dir.exists() else True
+
+
+def test_weather_batch_sidecars_share_initial_git_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify all batch sidecars from one ingest run share the initial git_commit and git_dirty."""
+    cw = load_district_crosswalk().head(4).copy()
+    dates = ["2026-10-14"]
+
+    def mock_get(url: str, params: dict[str, str], timeout: float) -> httpx.Response:
+        payload = [
+            {
+                "daily": {
+                    "time": dates,
+                    "temperature_2m_mean": [28.0],
+                    "precipitation_sum": [1.0],
+                    "relative_humidity_2m_mean": [80.0],
+                }
+            }
+            for _ in range(2)
+        ]
+        req = httpx.Request("GET", url, params=params)
+        return httpx.Response(200, request=req, json=payload)
+
+    calls = 0
+
+    def mock_git_provenance() -> tuple[str, bool]:
+        nonlocal calls
+        calls += 1
+        # Simulate working tree becoming dirty after the first batch file is written
+        return ("abc1234", calls > 1)
+
+    monkeypatch.setattr(httpx, "get", mock_get)
+    monkeypatch.setattr("cleanpulse.bronze.weather_client.get_git_provenance", mock_git_provenance)
+    monkeypatch.setattr("cleanpulse.bronze.provenance.get_git_provenance", mock_git_provenance)
+
+    client = OpenMeteoWeatherClient(batch_size=2)
+    bronze_dir = tmp_path / "bronze" / "weather"
+    saved_paths = client.ingest_bronze_batches(
+        crosswalk_df=cw,
+        start_date="2026-10-14",
+        end_date="2026-10-14",
+        bronze_dir=bronze_dir,
     )
-    out_parquet = tmp_path / "test_zones_daily.parquet"
 
-    df = generator.generate_180_day_series(
-        weather_df_or_path=weather_df,
-        random_seed=42,
-        output_parquet=out_parquet,
-    )
-
-    # 1. Output file and row count (10 zones * 180 days = 1,800 rows)
-    assert out_parquet.exists()
-    assert len(df) == 1800
-    assert df["zone_name"].nunique() == 10
-    assert df["report_date"].nunique() == 180
-
-    # 2. Strict Silver Schema
-    DGHSDivisionSilverSchema.validate(df, lazy=True)
-
-    # 3. Final day (2026-10-14) anchors
-    final_day = df[df["report_date"] == "2026-10-14"]
-    assert len(final_day) == 10
-
-    # National cumulative admissions must equal exactly 105,316
-    national_admissions = final_day["total_admitted"].sum()
-    assert national_admissions == 105316
-
-    # Verify each individual zone target matches the 2026 DGHS ground truth
-    for zone_name, expected_total in ZONE_TARGET_ADMISSIONS.items():
-        zone_final = final_day[final_day["zone_name"] == zone_name].iloc[0]
-        assert zone_final["total_admitted"] == expected_total
-
-    # 4. Monotonicity checks
-    for zone_name in CANONICAL_ZONES:
-        zone_series = df[df["zone_name"] == zone_name].sort_values("report_date")
-
-        # total_admitted is monotonically non-decreasing
-        admitted = zone_series["total_admitted"].to_numpy()
-        assert (np.diff(admitted) >= 0).all()
-
-        # total_deaths is monotonically non-decreasing
-        deaths = zone_series["total_deaths"].to_numpy()
-        assert (np.diff(deaths) >= 0).all()
-
-        # Discharges physical constraint: total_discharged <= total_admitted - total_deaths
-        discharged = zone_series["total_discharged"].to_numpy()
-        assert (discharged <= (admitted - deaths)).all()
-
-    # 5. Deterministic reproducibility: calling with same seed produces identical results
-    df_repeat = generator.generate_180_day_series(
-        weather_df_or_path=weather_df,
-        random_seed=42,
-        output_parquet=None,
-    )
-    pd.testing.assert_frame_equal(df, df_repeat)
-
-
-def test_silver_dengue_zones_persisted_dataset() -> None:
-    """Verify that data/silver/dengue_zones_daily.parquet contains 1,800 valid rows."""
-    assert DEFAULT_SILVER_ZONES_PARQUET.exists()
-    df = pd.read_parquet(DEFAULT_SILVER_ZONES_PARQUET)
-
-    assert len(df) == 1800
-    assert df["zone_name"].nunique() == 10
-    assert df["report_date"].nunique() == 180
-
-    DGHSDivisionSilverSchema.validate(df, lazy=True)
-
-    final_day = df[df["report_date"] == "2026-10-14"]
-    assert final_day["total_admitted"].sum() == 105316
+    assert len(saved_paths) == 2
+    sidecars = sorted(bronze_dir.rglob("*.sidecar.json"))
+    assert len(sidecars) == 2
+    provenances = [
+        (data["git_commit"], data["git_dirty"])
+        for data in (json.loads(p.read_text(encoding="utf-8")) for p in sidecars)
+    ]
+    assert provenances == [("abc1234", False), ("abc1234", False)]
+    assert calls == 1

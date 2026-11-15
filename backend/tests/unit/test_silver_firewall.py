@@ -22,8 +22,12 @@ from cleanpulse.silver.firewall import (
 def raw_bronze_payload() -> dict[str, object]:
     """Provide raw Bronze data parsed from the standard test fixture."""
     scraper = DGHSBronzeScraper(offline_mode=True, fixture_path=DEFAULT_FIXTURE_PATH)
-    html, source_hash, source_type = scraper.fetch_html(force_offline=True)
-    return scraper.parse_dashboard(html, source_hash, source_type)
+    raw_bytes, prov = scraper.fetch_raw(force_offline=True)
+    return scraper.parse_dashboard(
+        raw_bytes.decode("utf-8"),
+        source_hash=scraper.compute_sha256(raw_bytes),
+        fetch_source=str(prov["fetch_source"]),
+    )
 
 
 @pytest.fixture
