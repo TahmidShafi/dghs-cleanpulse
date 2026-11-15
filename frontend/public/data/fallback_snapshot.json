@@ -2,9 +2,9 @@
   "metadata": {
     "source": "DGHS-CleanPulse DuckDB In-Memory Engine",
     "snapshot_version": "2.1.0",
-    "generated_at_utc": "2026-11-15T14:17:50.820584+00:00",
-    "extracted_at": "2026-11-15T14:17:50.820584+00:00",
-    "git_commit": "1399461a37ba6d667100cb3444b7dcda6c655d1e",
+    "generated_at_utc": "2026-11-15T14:31:12.034940+00:00",
+    "extracted_at": "2026-11-15T14:31:12.034940+00:00",
+    "git_commit": "9a7826e005761d9e5353b072f7bcc8aa039ff706",
     "git_dirty": false,
     "source_label": "secondary source: transcribed from DGHS daily press releases (unverified transcription by third party)",
     "dataset_doi": "10.17632/z5mvwrfgsz.1",
@@ -13,7 +13,7 @@
   "surveillance_summary": {
     "status": "pending_real_source",
     "reason": "no_real_dengue_series",
-    "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+    "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
     "weather_available": true,
     "data": null,
     "historical": {
@@ -72466,7 +72466,7 @@
     "Chattogram": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72474,7 +72474,7 @@
     "DSCC": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72482,7 +72482,7 @@
     "Barishal": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72490,7 +72490,7 @@
     "Dhaka (Out of CC)": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72498,7 +72498,7 @@
     "DNCC": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72506,7 +72506,7 @@
     "Khulna": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72514,7 +72514,7 @@
     "Rajshahi": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72522,7 +72522,7 @@
     "Mymensingh": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72530,7 +72530,7 @@
     "Rangpur": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72538,7 +72538,7 @@
     "Sylhet": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -72546,7 +72546,7 @@
     "National": {
       "status": "pending_real_source",
       "reason": "no_real_dengue_series",
-      "message": "No real DGHS dengue time series is available yet. Synthetic backfill has been removed.",
+      "message": "Live DGHS feed offline; historical secondary-source series available under 'historical'.",
       "weather_available": true,
       "data": null,
       "historical": null
@@ -88325,7 +88325,7 @@
   },
   "pipeline_health": {
     "status": "healthy",
-    "timestamp": "2026-11-15T14:17:50.452842+00:00",
+    "timestamp": "2026-11-15T14:31:11.694048+00:00",
     "layer_counts": {
       "bronze_snapshots": 17,
       "silver_dengue_rows": 0,
@@ -88335,6 +88335,6 @@
       "gold_lag_rows": 0
     },
     "schemas_validated": true,
-    "duckdb_latency_ms": 0.672
+    "duckdb_latency_ms": 0.786
   }
 }
