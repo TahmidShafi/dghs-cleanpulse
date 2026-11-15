@@ -61,6 +61,19 @@ class SurveillanceSummaryData(BaseModel):
     age_groups: list[AgeCohortItem] = Field(..., description="Sanitized age group cohorts")
 
 
+class HistoricalSummaryBlock(BaseModel):
+    """Separate secondary-source historical summary block on /v1/surveillance/summary."""
+
+    model_config = ConfigDict(frozen=True)
+
+    window: str
+    report_date_start: str
+    report_date_end: str
+    total_cases: int = Field(..., ge=0)
+    source_label: str
+    dataset_doi: str
+
+
 class SurveillanceSummaryResponse(BaseModel):
     """Typed envelope for GET /v1/surveillance/summary."""
 
@@ -71,6 +84,7 @@ class SurveillanceSummaryResponse(BaseModel):
     message: str = Field(..., description="Human-readable status message")
     weather_available: bool = Field(..., description="Whether real weather data is available")
     data: SurveillanceSummaryData | None = Field(None)
+    historical: HistoricalSummaryBlock | None = Field(None)
 
 
 # ---------------------------------------------------------------------------
@@ -210,3 +224,55 @@ class PipelineHealthResponse(BaseModel):
     layer_counts: PipelineLayerCounts
     schemas_validated: bool
     duckdb_latency_ms: float = Field(..., ge=0.0)
+
+
+# ---------------------------------------------------------------------------
+# 6. Historical Secondary-Source Weekly & Lag Models
+# ---------------------------------------------------------------------------
+class HistoricalWeeklyRow(BaseModel):
+    """One ISO 8601 week row of historical secondary dengue + ERA5 weather."""
+
+    model_config = ConfigDict(frozen=True)
+
+    week_start: str
+    iso_week: str
+    weekly_cases: int = Field(..., ge=0)
+    weekly_precip_mm: float = Field(..., ge=0.0)
+    weekly_temp_c: float
+    weekly_humidity_pct: float = Field(..., ge=0.0, le=100.0)
+
+
+class HistoricalWeeklyResponse(BaseModel):
+    """Response for GET /v1/historical/weekly."""
+
+    model_config = ConfigDict(frozen=True)
+
+    scope: str
+    source_label: str
+    dataset_doi: str
+    window: str
+    series: list[HistoricalWeeklyRow]
+
+
+class WeeklyLagCorrelationRow(BaseModel):
+    """One pre-registered Spearman rho coefficient (descriptive only; no p-values)."""
+
+    model_config = ConfigDict(frozen=True)
+
+    lag_weeks: int = Field(..., ge=0, le=8)
+    transform: str
+    rho: float | None = Field(None, ge=-1.0, le=1.0)
+    n: int = Field(..., gt=0)
+    null_reason: str | None = None
+
+
+class WeeklyLagCorrelationsResponse(BaseModel):
+    """Response for GET /v1/analytics/lag-correlations."""
+
+    model_config = ConfigDict(frozen=True)
+
+    scope: str
+    variable: str
+    source_label: str
+    dataset_doi: str
+    rows: list[WeeklyLagCorrelationRow]

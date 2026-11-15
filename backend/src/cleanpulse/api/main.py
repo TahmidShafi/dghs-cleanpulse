@@ -17,13 +17,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from cleanpulse.api.schemas import (
     AuditAnomaliesResponse,
+    HistoricalWeeklyResponse,
     PipelineHealthResponse,
     SurveillanceLagsResponse,
     SurveillanceSummaryResponse,
     WeatherDailyResponse,
+    WeeklyLagCorrelationsResponse,
 )
 from cleanpulse.bronze.provenance import get_git_provenance
 from cleanpulse.gold.lag_engine import GOLD_ZONES_LIST
+from cleanpulse.gold.weekly_analysis import CLIMATE_VARIABLES
+from cleanpulse.silver.dengue_secondary import SECONDARY_SOURCE_LABEL
+from cleanpulse.silver.weather_division import WEATHER_SCOPES
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +43,11 @@ WEATHER_PARQUET = SILVER_DIR / "weather_districts_daily.parquet"
 ANOMALIES_PARQUET = SILVER_DIR / "audit_anomalies.parquet"
 GOLD_DAILY_PARQUET = GOLD_DIR / "zone_daily_climate_dengue.parquet"
 GOLD_LAGS_PARQUET = GOLD_DIR / "zone_lag_correlations.parquet"
+SILVER_DENGUE_DAILY_PARQUET = SILVER_DIR / "dengue_division_daily.parquet"
+GOLD_WEEKLY_PARQUET = GOLD_DIR / "weekly_scope_climate_cases.parquet"
+GOLD_WEEKLY_LAGS_PARQUET = GOLD_DIR / "lag_correlations_weekly.parquet"
+
+DATASET_A_DOI = "10.17632/z5mvwrfgsz.1"
 
 _db_connection: duckdb.DuckDBPyConnection | None = None
 
@@ -66,6 +76,9 @@ def _init_db() -> None:
         ("silver_audit_anomalies", ANOMALIES_PARQUET),
         ("silver_zones_daily", ZONES_PARQUET),
         ("silver_weather_daily", WEATHER_PARQUET),
+        ("silver_dengue_division_daily", SILVER_DENGUE_DAILY_PARQUET),
+        ("gold_weekly_scope", GOLD_WEEKLY_PARQUET),
+        ("gold_weekly_lags", GOLD_WEEKLY_LAGS_PARQUET),
     ]
     for tbl_name, path in tables:
         if path.exists():
@@ -121,7 +134,34 @@ app.add_middleware(
 )
 
 
-def _pending_dengue_response(weather_available: bool) -> dict[str, Any]:
+def _historical_summary_block(con: duckdb.DuckDBPyConnection) -> dict[str, Any] | None:
+    if not _table_exists(con, "silver_dengue_division_daily"):
+        return None
+    row = con.execute(
+        """
+        SELECT
+            MIN(report_date) AS start_d,
+            MAX(report_date) AS end_d,
+            CAST(SUM(cases) AS BIGINT) AS total_cases
+        FROM silver_dengue_division_daily
+        """
+    ).fetchone()
+    if not row or row[0] is None:
+        return None
+    return {
+        "window": f"{row[0]} to {row[1]}",
+        "report_date_start": str(row[0]),
+        "report_date_end": str(row[1]),
+        "total_cases": int(row[2]),
+        "source_label": SECONDARY_SOURCE_LABEL,
+        "dataset_doi": DATASET_A_DOI,
+    }
+
+
+def _pending_dengue_response(
+    weather_available: bool,
+    historical: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "status": "pending_real_source",
         "reason": "no_real_dengue_series",
@@ -130,6 +170,7 @@ def _pending_dengue_response(weather_available: bool) -> dict[str, Any]:
         ),
         "weather_available": weather_available,
         "data": None,
+        "historical": historical,
     }
 
 
@@ -145,9 +186,10 @@ def get_surveillance_summary() -> dict[str, Any]:
     """Retrieve surveillance KPIs, or pending_real_source when no real dengue data exists."""
     con = get_db()
     weather_available = _table_exists(con, "silver_weather_daily")
+    historical = _historical_summary_block(con)
 
     if not _table_exists(con, "gold_zone_daily") or not _table_exists(con, "gold_lag_correlations"):
-        return _pending_dengue_response(weather_available)
+        return _pending_dengue_response(weather_available, historical=historical)
 
     latest_row = con.execute("SELECT MAX(report_date) FROM gold_zone_daily").fetchone()
     if not latest_row or not latest_row[0]:
@@ -517,9 +559,128 @@ def get_pipeline_health() -> dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# Endpoint 6: GET /v1/historical/weekly
+# ---------------------------------------------------------------------------
+@app.get(
+    "/v1/historical/weekly",
+    response_model=HistoricalWeeklyResponse,
+    summary="Get ISO 8601 weekly secondary dengue cases + ERA5 weather for a scope",
+)
+def get_historical_weekly(
+    scope: str = Query("National", description="National or one of 8 divisions"),
+) -> dict[str, Any]:
+    """Return 156 complete ISO weeks for the requested scope."""
+    if scope not in WEATHER_SCOPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Scope '{scope}' is invalid. Allowed scopes: {list(WEATHER_SCOPES)}",
+        )
+    con = get_db()
+    if not _table_exists(con, "gold_weekly_scope"):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Weekly Gold table is not loaded.",
+        )
+    df = con.execute(
+        """
+        SELECT
+            week_start_date AS week_start,
+            iso_year,
+            iso_week,
+            CAST(weekly_cases AS BIGINT) AS weekly_cases,
+            ROUND(weekly_precip_mm, 2) AS weekly_precip_mm,
+            ROUND(weekly_temp_c, 2) AS weekly_temp_c,
+            ROUND(weekly_humidity_pct, 2) AS weekly_humidity_pct
+        FROM gold_weekly_scope
+        WHERE scope = ?
+        ORDER BY week_start_date ASC
+        """,
+        [scope],
+    ).fetchdf()
+    series = [
+        {
+            "week_start": str(r["week_start"]),
+            "iso_week": f"{int(r['iso_year'])}-W{int(r['iso_week']):02d}",
+            "weekly_cases": int(r["weekly_cases"]),
+            "weekly_precip_mm": float(r["weekly_precip_mm"]),
+            "weekly_temp_c": float(r["weekly_temp_c"]),
+            "weekly_humidity_pct": float(r["weekly_humidity_pct"]),
+        }
+        for r in df.to_dict(orient="records")
+    ]
+    window = (
+        f"{series[0]['iso_week']} to {series[-1]['iso_week']}" if series else "2022-W01 to 2024-W52"
+    )
+    return {
+        "scope": scope,
+        "source_label": SECONDARY_SOURCE_LABEL,
+        "dataset_doi": DATASET_A_DOI,
+        "window": window,
+        "series": series,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoint 7: GET /v1/analytics/lag-correlations
+# ---------------------------------------------------------------------------
+@app.get(
+    "/v1/analytics/lag-correlations",
+    response_model=WeeklyLagCorrelationsResponse,
+    summary="Get pre-registered Spearman rho values (lags 0..8) for a scope and variable",
+)
+def get_weekly_lag_correlations(
+    scope: str = Query("National", description="National or one of 8 divisions"),
+    variable: str = Query("weekly_precip_mm", description="Climate variable"),
+) -> dict[str, Any]:
+    """Return 18 pre-registered descriptive Spearman rho rows (2 transforms x 9 lags)."""
+    if scope not in WEATHER_SCOPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Scope '{scope}' is invalid. Allowed scopes: {list(WEATHER_SCOPES)}",
+        )
+    if variable not in CLIMATE_VARIABLES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Variable '{variable}' is invalid. Allowed: {list(CLIMATE_VARIABLES)}",
+        )
+    con = get_db()
+    if not _table_exists(con, "gold_weekly_lags"):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Weekly lag Gold table is not loaded.",
+        )
+    df = con.execute(
+        """
+        SELECT lag_weeks, transform, rho, CAST(n AS BIGINT) AS n, null_reason
+        FROM gold_weekly_lags
+        WHERE scope = ? AND variable = ?
+        ORDER BY transform ASC, lag_weeks ASC
+        """,
+        [scope, variable],
+    ).fetchdf()
+    rows = [
+        {
+            "lag_weeks": int(r["lag_weeks"]),
+            "transform": str(r["transform"]),
+            "rho": None if pd.isna(r["rho"]) else round(float(r["rho"]), 4),
+            "n": int(r["n"]),
+            "null_reason": None if pd.isna(r["null_reason"]) else str(r["null_reason"]),
+        }
+        for r in df.to_dict(orient="records")
+    ]
+    return {
+        "scope": scope,
+        "variable": variable,
+        "source_label": SECONDARY_SOURCE_LABEL,
+        "dataset_doi": DATASET_A_DOI,
+        "rows": rows,
+    }
+
+
 def build_snapshot_payload() -> dict[str, Any]:
     """Build static frontend snapshot payload strictly from real data."""
-    get_db()
+    con = get_db()
     summary = get_surveillance_summary()
     audit = get_audit_anomalies(severity="ALL", anomaly_type="ALL")
     health = get_pipeline_health()
@@ -530,21 +691,38 @@ def build_snapshot_payload() -> dict[str, Any]:
         weather_by_zone[zone] = get_weather_daily(zone=zone)
         lags_by_zone[zone] = get_surveillance_lags(zone=zone, lag_days=14)
 
+    historical_weekly_by_scope: dict[str, Any] = {}
+    lag_correlations_weekly: list[dict[str, Any]] = []
+    if _table_exists(con, "gold_weekly_scope"):
+        for scope in WEATHER_SCOPES:
+            historical_weekly_by_scope[scope] = get_historical_weekly(scope=scope)
+    if _table_exists(con, "gold_weekly_lags"):
+        for scope in WEATHER_SCOPES:
+            for variable in CLIMATE_VARIABLES:
+                res = get_weekly_lag_correlations(scope=scope, variable=variable)
+                for row in res["rows"]:
+                    lag_correlations_weekly.append({"scope": scope, "variable": variable, **row})
+
     git_commit, git_dirty = get_git_provenance()
     generated_at_utc = datetime.now(UTC).isoformat()
 
     return {
         "metadata": {
             "source": "DGHS-CleanPulse DuckDB In-Memory Engine",
-            "snapshot_version": "2.0.0",
+            "snapshot_version": "2.1.0",
             "generated_at_utc": generated_at_utc,
             "extracted_at": generated_at_utc,
             "git_commit": git_commit,
             "git_dirty": git_dirty,
+            "source_label": SECONDARY_SOURCE_LABEL,
+            "dataset_doi": DATASET_A_DOI,
+            "window": "2022-W01 to 2024-W52",
         },
         "surveillance_summary": summary,
         "weather_by_zone": weather_by_zone,
         "lags_by_zone": lags_by_zone,
+        "historical_weekly_by_scope": historical_weekly_by_scope,
+        "lag_correlations_weekly": lag_correlations_weekly,
         "audit_anomalies": audit,
         "pipeline_health": health,
     }

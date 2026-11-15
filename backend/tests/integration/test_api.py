@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from datetime import date
 
+import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
@@ -35,6 +36,48 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Generator[TestClient, No
     weather_parquet = silver_dir / "weather_districts_daily.parquet"
     weather_df.to_parquet(weather_parquet, index=False)
 
+    dengue_daily_parquet = silver_dir / "dengue_division_daily.parquet"
+    pd.DataFrame(
+        {
+            "report_date": ["2022-01-01", "2022-01-02"],
+            "division": ["Dhaka", "Dhaka"],
+            "cases": [10, 15],
+            "source_label": ["secondary", "secondary"],
+        }
+    ).to_parquet(dengue_daily_parquet, index=False)
+
+    gold_weekly_parquet = gold_dir / "weekly_scope_climate_cases.parquet"
+    pd.DataFrame(
+        {
+            "scope": ["National", "Dhaka"],
+            "iso_year": [2022, 2022],
+            "iso_week": [1, 1],
+            "week_start_date": ["2022-01-03", "2022-01-03"],
+            "week_end_date": ["2022-01-09", "2022-01-09"],
+            "weekly_cases": [100, 60],
+            "weekly_precip_mm": [12.5, 10.0],
+            "weekly_temp_c": [22.1, 22.5],
+            "weekly_humidity_pct": [75.0, 74.0],
+        }
+    ).to_parquet(gold_weekly_parquet, index=False)
+
+    gold_weekly_lags_parquet = gold_dir / "lag_correlations_weekly.parquet"
+    lag_rows = []
+    for tr in ("raw", "diff_log"):
+        for k in range(9):
+            lag_rows.append(
+                {
+                    "scope": "National",
+                    "variable": "weekly_precip_mm",
+                    "transform": tr,
+                    "lag_weeks": k,
+                    "rho": 0.25 if tr == "raw" else None,
+                    "n": 156 - k if tr == "raw" else 155 - k,
+                    "null_reason": None if tr == "raw" else "constant series",
+                }
+            )
+    pd.DataFrame(lag_rows).to_parquet(gold_weekly_lags_parquet, index=False)
+
     orig_attrs = {
         "DATA_DIR": api_main.DATA_DIR,
         "SILVER_DIR": api_main.SILVER_DIR,
@@ -46,6 +89,9 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Generator[TestClient, No
         "ANOMALIES_PARQUET": api_main.ANOMALIES_PARQUET,
         "GOLD_DAILY_PARQUET": api_main.GOLD_DAILY_PARQUET,
         "GOLD_LAGS_PARQUET": api_main.GOLD_LAGS_PARQUET,
+        "SILVER_DENGUE_DAILY_PARQUET": api_main.SILVER_DENGUE_DAILY_PARQUET,
+        "GOLD_WEEKLY_PARQUET": api_main.GOLD_WEEKLY_PARQUET,
+        "GOLD_WEEKLY_LAGS_PARQUET": api_main.GOLD_WEEKLY_LAGS_PARQUET,
     }
     api_main.reset_db()
     api_main.DATA_DIR = tmp_root
@@ -58,6 +104,9 @@ def client(tmp_path_factory: pytest.TempPathFactory) -> Generator[TestClient, No
     api_main.ANOMALIES_PARQUET = silver_dir / "audit_anomalies.parquet"
     api_main.GOLD_DAILY_PARQUET = gold_dir / "zone_daily_climate_dengue.parquet"
     api_main.GOLD_LAGS_PARQUET = gold_dir / "zone_lag_correlations.parquet"
+    api_main.SILVER_DENGUE_DAILY_PARQUET = dengue_daily_parquet
+    api_main.GOLD_WEEKLY_PARQUET = gold_weekly_parquet
+    api_main.GOLD_WEEKLY_LAGS_PARQUET = gold_weekly_lags_parquet
 
     try:
         with TestClient(api_main.app) as test_client:
@@ -77,6 +126,8 @@ def test_surveillance_summary_pending_real_source(client: TestClient) -> None:
     assert body["reason"] == "no_real_dengue_series"
     assert body["weather_available"] is True
     assert body["data"] is None
+    assert body["historical"]["total_cases"] == 25
+    assert body["historical"]["window"] == "2022-01-01 to 2022-01-02"
 
 
 def test_surveillance_lags_pending_real_source_and_validation(client: TestClient) -> None:
@@ -138,3 +189,24 @@ def test_pipeline_health_endpoint_returns_200(client: TestClient) -> None:
     assert counts["gold_daily_rows"] == 0
     assert counts["gold_lag_rows"] == 0
     assert counts["silver_weather_rows"] > 0
+
+
+def test_historical_weekly_and_lag_correlations_endpoints(client: TestClient) -> None:
+    resp_w = client.get("/v1/historical/weekly?scope=National")
+    assert resp_w.status_code == 200
+    body_w = resp_w.json()
+    assert body_w["scope"] == "National"
+    assert body_w["dataset_doi"] == "10.17632/z5mvwrfgsz.1"
+    assert len(body_w["series"]) == 1
+    assert body_w["series"][0]["iso_week"] == "2022-W01"
+    assert body_w["series"][0]["weekly_cases"] == 100
+
+    assert client.get("/v1/historical/weekly?scope=Atlantis").status_code == 400
+
+    resp_l = client.get("/v1/analytics/lag-correlations?scope=National&variable=weekly_precip_mm")
+    assert resp_l.status_code == 200
+    body_l = resp_l.json()
+    assert len(body_l["rows"]) == 18
+    assert (
+        client.get("/v1/analytics/lag-correlations?scope=National&variable=bad").status_code == 400
+    )
