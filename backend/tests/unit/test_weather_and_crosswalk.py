@@ -81,7 +81,10 @@ def test_weather_ingest_bronze_and_build_silver_from_bronze(
     cw = load_district_crosswalk().head(4).copy()
     dates = ["2026-10-12", "2026-10-13", "2026-10-14"]
 
+    captured_params: list[dict[str, str]] = []
+
     def mock_get(url: str, params: dict[str, str], timeout: float) -> httpx.Response:
+        captured_params.append(dict(params))
         payload = [
             {
                 "daily": {
@@ -117,6 +120,9 @@ def test_weather_ingest_bronze_and_build_silver_from_bronze(
     assert sidecar_path.exists()
 
     sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+    assert len(captured_params) == 1
+    assert captured_params[0]["models"] == "era5"
+    assert sidecar["models"] == "era5"
     assert sidecar["sha256"] == hashlib.sha256(raw_files[0].read_bytes()).hexdigest()
     assert sidecar["fetch_source"] == "live"
     assert "request_params" in sidecar

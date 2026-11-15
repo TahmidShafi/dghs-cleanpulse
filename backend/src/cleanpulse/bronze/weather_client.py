@@ -112,6 +112,7 @@ class OpenMeteoWeatherClient:
             "end_date": end_date,
             "daily": "temperature_2m_mean,precipitation_sum,relative_humidity_2m_mean",
             "timezone": "Asia/Dhaka",
+            "models": "era5",
         }
 
         last_error: Exception | None = None
@@ -142,6 +143,7 @@ class OpenMeteoWeatherClient:
                 fetched_at = datetime.now(UTC).isoformat()
                 return resp.content, {
                     "url": str(resp.url),
+                    "models": params["models"],
                     "request_params": params,
                     "district_ids": [str(d["district_id"]) for d in batch_districts],
                     "http_status": resp.status_code,
