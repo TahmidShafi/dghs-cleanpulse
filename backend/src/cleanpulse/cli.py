@@ -22,6 +22,7 @@ from pathlib import Path
 from cleanpulse.bronze.dghs_scraper import DGHSBronzeScraper
 from cleanpulse.bronze.mendeley_client import ingest_mendeley_dataset
 from cleanpulse.bronze.weather_client import OpenMeteoWeatherClient
+from cleanpulse.gold.weekly_analysis import build_weekly_gold
 from cleanpulse.silver.dengue_secondary import (
     build_dengue_division_daily,
     build_dengue_division_monthly_b,
@@ -442,6 +443,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Reconcile Mendeley A/B against published DGHS totals and generate report",
     )
 
+    # 10. build-weekly-gold
+    subparsers.add_parser(
+        "build-weekly-gold",
+        help="Build pre-registered weekly Gold tables and docs/analysis_results.md",
+    )
+
     return parser
 
 
@@ -524,6 +531,21 @@ def main(argv: list[str] | None = None) -> int:
                     metrics="3 parquet tables + markdown report",
                     duration_sec=time.perf_counter() - t0,
                     output_path=_rel_path(outputs.report_path),
+                )
+            )
+        elif args.subcommand == "build-weekly-gold":
+            t0 = time.perf_counter()
+            gold_out = build_weekly_gold()
+            all_results.append(
+                StageResult(
+                    stage_name="Gold Weekly Lag Analysis",
+                    status="SUCCESS",
+                    metrics=(
+                        f"{gold_out.complete_weeks_per_scope} weeks/scope "
+                        f"({gold_out.first_week}..{gold_out.last_week})"
+                    ),
+                    duration_sec=time.perf_counter() - t0,
+                    output_path=_rel_path(gold_out.results_md_path),
                 )
             )
         else:
