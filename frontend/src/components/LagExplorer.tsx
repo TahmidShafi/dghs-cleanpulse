@@ -548,7 +548,7 @@ export function LagExplorer({
           </span>
           <div className="flex flex-wrap items-center gap-4 font-mono tabular-nums">
             <span className="text-primary">
-              raw ρ:{" "}
+              Raw ρ:{" "}
               <span className="text-accent-text">
                 {activeRaw?.rho !== null && activeRaw?.rho !== undefined
                   ? activeRaw.rho.toFixed(2)
@@ -559,7 +559,7 @@ export function LagExplorer({
               </span>
             </span>
             <span className="text-primary">
-              diff_log ρ:{" "}
+              Differenced ρ:{" "}
               <span className="text-primary">
                 {activeDiff?.rho !== null && activeDiff?.rho !== undefined
                   ? activeDiff.rho.toFixed(2)
